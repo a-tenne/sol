@@ -64,6 +64,9 @@ executable sol
     -- Modules included in this executable, other than Main.
     other-modules:
       AST
+      Parser.Op
+      -- Parser.Parser
+      -- Parser.Ex
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

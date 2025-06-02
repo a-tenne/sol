@@ -282,3 +282,6 @@ instance Show Ex12 where
 instance Show Ex12' where
   show (Ex12' op l r) = show op ++ " " ++ show l ++ " " ++ show r
   show NIL12 = ""
+
+data Program = Program
+  deriving (Eq, Show)

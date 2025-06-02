@@ -1,55 +1,21 @@
 module Main where
 
-import AST
 import System.Environment
-import Text.Parsec (digit, lookAhead, oneOf, parse, skipMany, (<|>))
-import Text.Parsec.Char (space)
-import Text.Parsec.Combinator (many1)
-import Text.Parsec.String (Parser)
-
-num :: Parser Integer
-num = do
-  n <- many1 digit
-  return (read n)
-
-binary1 :: Parser Char
-binary1 = oneOf "+-"
-
-binary2 :: Parser Char
-binary2 = oneOf "*/"
-
-checkBinaryOp :: Parser Bool
-checkBinaryOp = lookAhead (oneOf "+-*/" >> return True) <|> return False
-
-expr1 :: Parser Expr1
-expr1 = do
-  whitespace
-  l <- num
-  whitespace
-  check <- checkBinaryOp
-  whitespace
-  if not check
-    then
-      return (Unary1 l)
-    else do
-      op <- binary1
-      r <- expr1
-      whitespace
-      return (Binary1 {lhs1 = l, op1 = op, rhs1 = r})
-
-whitespace :: Parser ()
-whitespace = skipMany space
+import System.IO (hPutStrLn, stderr)
+import System.Exit (exitFailure)
 
 main :: IO ()
 main = do
   argv <- getArgs
-  let fileName = last argv
-  if null fileName
-    then
-      error "Input file required!"
+  if null argv
+    then do
+      hPutStrLn stderr "Input file required!"
+      exitFailure
     else do
-      file <- readFile fileName
-      case parse expr1 "Syntax error" file of
+      let fileName = last argv
+      _file <- readFile fileName
+      {- case parse  "Syntax error" file of
         Left err -> print err
         Right expr -> print expr
+      -}
       return ()
