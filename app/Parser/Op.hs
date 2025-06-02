@@ -1,8 +1,7 @@
 module Parser.Op where
 
 import AST
-import Text.Parsec (choice, digit, string)
-import Text.Parsec.Combinator (many1)
+import Text.Parsec (choice, string)
 import Text.Parsec.String (Parser)
 import Text.ParserCombinators.Parsec (try)
 import Prelude hiding (EQ, GT, LT)
@@ -21,11 +20,6 @@ opMulti strs opers = do
 
 opSingle :: (Show a, Eq a) => String -> a -> Parser a
 opSingle x y = string x >> return y
-
-num :: Parser Double
-num = do
-  n <- many1 digit
-  return (read n)
 
 oper1 :: Parser OP1
 oper1 = opSingle "or" OR

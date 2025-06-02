@@ -1,5 +1,6 @@
 module AST where
-import Prelude hiding (LT,GT,EQ)
+
+import Prelude hiding (EQ, GT, LT)
 
 data OP1 = OR
   deriving (Eq)
@@ -13,9 +14,9 @@ data OP2 = AND
 instance Show OP2 where
   show AND = "and"
 
-
 data OP3 = LT | GT | LE | GE | NE | EQ
   deriving (Eq)
+
 instance Show OP3 where
   show LT = "<"
   show GT = ">"
@@ -80,7 +81,6 @@ instance Show OP11 where
   show U_MINUS = "-"
   show B_NOT = "~"
 
-
 data OP12 = EXP
   deriving (Eq)
 
@@ -98,10 +98,10 @@ data Ex1' = Ex1' {op1 :: OP1, lhs'1 :: Ex2, rhs'1 :: Ex1'} | NIL1
   deriving (Eq)
 
 instance Show Ex1 where
-  show (Ex1 l r)  = show l ++ " " ++ show r
+  show (Ex1 l r) = show l ++ show r
 
 instance Show Ex1' where
-  show (Ex1' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex1' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL1 = ""
 
 data Ex2
@@ -115,10 +115,10 @@ data Ex2' = Ex2' {op2 :: OP2, lhs'2 :: Ex3, rhs'2 :: Ex2'} | NIL2
   deriving (Eq)
 
 instance Show Ex2 where
-  show (Ex2 l r)  = show l ++ " " ++ show r
+  show (Ex2 l r) = show l ++ show r
 
 instance Show Ex2' where
-  show (Ex2' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex2' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL2 = ""
 
 data Ex3
@@ -132,10 +132,10 @@ data Ex3' = Ex3' {op3 :: OP3, lhs'3 :: Ex4, rhs'3 :: Ex3'} | NIL3
   deriving (Eq)
 
 instance Show Ex3 where
-  show (Ex3 l r)  = show l ++ " " ++ show r
+  show (Ex3 l r) = show l ++ show r
 
 instance Show Ex3' where
-  show (Ex3' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex3' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL3 = ""
 
 data Ex4
@@ -149,10 +149,10 @@ data Ex4' = Ex4' {op4 :: OP4, lhs'4 :: Ex5, rhs'4 :: Ex4'} | NIL4
   deriving (Eq)
 
 instance Show Ex4 where
-  show (Ex4 l r)  = show l ++ " " ++ show r
+  show (Ex4 l r) = show l ++ show r
 
 instance Show Ex4' where
-  show (Ex4' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex4' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL4 = ""
 
 data Ex5
@@ -166,12 +166,11 @@ data Ex5' = Ex5' {op5 :: OP5, lhs'5 :: Ex6, rhs'5 :: Ex5'} | NIL5
   deriving (Eq)
 
 instance Show Ex5 where
-  show (Ex5 l r)  = show l ++ " " ++ show r
+  show (Ex5 l r) = show l ++ show r
 
 instance Show Ex5' where
-  show (Ex5' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex5' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL5 = ""
-
 
 data Ex6
   = Ex6
@@ -183,12 +182,11 @@ data Ex6
 data Ex6' = Ex6' {op6 :: OP6, lhs'6 :: Ex7, rhs'6 :: Ex6'} | NIL6
   deriving (Eq)
 
-
 instance Show Ex6 where
-  show (Ex6 l r)  = show l ++ " " ++ show r
+  show (Ex6 l r) = show l ++ show r
 
 instance Show Ex6' where
-  show (Ex6' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex6' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL6 = ""
 
 data Ex7
@@ -202,10 +200,10 @@ data Ex7' = Ex7' {op7 :: OP7, lhs'7 :: Ex8, rhs'7 :: Ex7'} | NIL7
   deriving (Eq)
 
 instance Show Ex7 where
-  show (Ex7 l r)  = show l ++ " " ++ show r
+  show (Ex7 l r) = show l ++ show r
 
 instance Show Ex7' where
-  show (Ex7' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex7' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL7 = ""
 
 data Ex8
@@ -217,11 +215,12 @@ data Ex8
 
 data Ex8' = Ex8' {op8 :: OP8, lhs'8 :: Ex9, rhs'8 :: Ex8'} | NIL8
   deriving (Eq)
+
 instance Show Ex8 where
-  show (Ex8 l r)  = show l ++ " " ++ show r
+  show (Ex8 l r) = show l ++ show r
 
 instance Show Ex8' where
-  show (Ex8' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex8' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL8 = ""
 
 data Ex9
@@ -233,11 +232,12 @@ data Ex9
 
 data Ex9' = Ex9' {op9 :: OP9, lhs'9 :: Ex10, rhs'9 :: Ex9'} | NIL9
   deriving (Eq)
+
 instance Show Ex9 where
-  show (Ex9 l r)  = show l ++ " " ++ show r
+  show (Ex9 l r) = show l ++ show r
 
 instance Show Ex9' where
-  show (Ex9' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex9' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL9 = ""
 
 data Ex10
@@ -249,11 +249,12 @@ data Ex10
 
 data Ex10' = Ex10' {op10 :: OP10, lhs'10 :: Ex11, rhs'10 :: Ex10'} | NIL10
   deriving (Eq)
+
 instance Show Ex10 where
-  show (Ex10 l r)  = show l ++ " " ++ show r
+  show (Ex10 l r) = show l ++ show r
 
 instance Show Ex10' where
-  show (Ex10' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex10' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL10 = ""
 
 data Ex11
@@ -263,8 +264,9 @@ data Ex11
       }
   | EX12 Ex12
   deriving (Eq)
+
 instance Show Ex11 where
-  show (Ex11 op r)  = show op ++ " " ++ show r
+  show (Ex11 op r) = " " ++ show op ++ show r
   show (EX12 ex) = show ex
 
 data Ex12
@@ -276,12 +278,25 @@ data Ex12
 
 data Ex12' = Ex12' {op12 :: OP12, lhs'12 :: Integer, rhs'12 :: Ex12'} | NIL12
   deriving (Eq)
+
 instance Show Ex12 where
-  show (Ex12 l r)  = show l ++ " " ++ show r
+  show (Ex12 l r) = show l ++ show r
 
 instance Show Ex12' where
-  show (Ex12' op l r) = show op ++ " " ++ show l ++ " " ++ show r
+  show (Ex12' op l r) = " " ++ show op ++ " " ++ show l ++ show r
   show NIL12 = ""
 
-data Program = Program
+data NamedVar = NamedVar String
+  deriving (Eq)
+
+instance Show NamedVar where
+  show (NamedVar name) = show name
+
+data Assign = Assign {asgnL :: NamedVar, asgnR :: Ex1}
+  deriving (Eq)
+
+instance Show Assign where
+  show (Assign l r) = show l ++ " = " ++ show r
+
+data Program = Program {ls :: [Assign]}
   deriving (Eq, Show)
