@@ -22,6 +22,7 @@ checkChar x = lookAhead (char x >> return True) <|> return False
 
 num :: Parser Integer
 num = do
+  skipSpace
   n <- many1 digit
   return $ read n
 
@@ -209,7 +210,7 @@ ex10' = do
 ex11 :: Parser Ex11
 ex11 = do
   skipSpace
-  check <- checkMulti ["not", "#", "-", "~"]
+  check <- checkMulti ["not ", "#", "-", "~"]
   if not check
     then EX12 <$> ex12
     else do

@@ -6,77 +6,77 @@ data OP1 = OR
   deriving (Eq)
 
 instance Show OP1 where
-  show OR = "or"
+  show OR = " or "
 
 data OP2 = AND
   deriving (Eq)
 
 instance Show OP2 where
-  show AND = "and"
+  show AND = " and "
 
 data OP3 = LT | GT | LE | GE | NE | EQ
   deriving (Eq)
 
 instance Show OP3 where
-  show LT = "<"
-  show GT = ">"
-  show LE = "<="
-  show GE = ">="
-  show NE = "~="
-  show EQ = "=="
+  show LT = " < "
+  show GT = " > "
+  show LE = " <= "
+  show GE = " >= "
+  show NE = " ~= "
+  show EQ = " == "
 
 data OP4 = B_OR
   deriving (Eq)
 
 instance Show OP4 where
-  show B_OR = "|"
+  show B_OR = " | "
 
 data OP5 = B_XOR
   deriving (Eq)
 
 instance Show OP5 where
-  show B_XOR = "~"
+  show B_XOR = " ~ "
 
 data OP6 = B_AND
   deriving (Eq)
 
 instance Show OP6 where
-  show B_AND = "&"
+  show B_AND = " & "
 
 data OP7 = LSHIFT | RSHIFT
   deriving (Eq)
 
 instance Show OP7 where
-  show LSHIFT = "<<"
-  show RSHIFT = ">>"
+  show LSHIFT = " << "
+  show RSHIFT = " >> "
 
 data OP8 = CONCAT
   deriving (Eq)
 
 instance Show OP8 where
-  show CONCAT = ".."
+  show CONCAT = " .. "
 
 data OP9 = PLUS | MINUS
   deriving (Eq)
 
 instance Show OP9 where
-  show PLUS = "+"
-  show MINUS = "-"
+  show PLUS = " + "
+  show MINUS = " - "
 
 data OP10 = MULT | DIV | INT_DIV | MOD
   deriving (Eq)
 
 instance Show OP10 where
-  show MULT = "*"
-  show DIV = "/"
-  show INT_DIV = "//"
-  show MOD = "%"
+  show MULT = " * "
+  show DIV = " / "
+  show INT_DIV = " // "
+  show MOD = " % "
 
 data OP11 = NOT | INDEX | U_MINUS | B_NOT
   deriving (Eq)
 
 instance Show OP11 where
-  show NOT = "not"
+  show NOT = "not "
   show INDEX = "#"
   show U_MINUS = "-"
   show B_NOT = "~"
@@ -85,7 +85,7 @@ data OP12 = EXP
   deriving (Eq)
 
 instance Show OP12 where
-  show EXP = "^"
+  show EXP = " ^ "
 
 data Ex1
   = Ex1
@@ -101,7 +101,7 @@ instance Show Ex1 where
   show (Ex1 l r) = show l ++ show r
 
 instance Show Ex1' where
-  show (Ex1' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex1' op l r) = show op ++ show l ++ show r
   show NIL1 = ""
 
 data Ex2
@@ -118,7 +118,7 @@ instance Show Ex2 where
   show (Ex2 l r) = show l ++ show r
 
 instance Show Ex2' where
-  show (Ex2' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex2' op l r) = show op ++ show l ++ show r
   show NIL2 = ""
 
 data Ex3
@@ -135,7 +135,7 @@ instance Show Ex3 where
   show (Ex3 l r) = show l ++ show r
 
 instance Show Ex3' where
-  show (Ex3' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex3' op l r) = show op ++ show l ++ show r 
   show NIL3 = ""
 
 data Ex4
@@ -152,7 +152,7 @@ instance Show Ex4 where
   show (Ex4 l r) = show l ++ show r
 
 instance Show Ex4' where
-  show (Ex4' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex4' op l r) = show op ++ show l ++ show r
   show NIL4 = ""
 
 data Ex5
@@ -169,7 +169,7 @@ instance Show Ex5 where
   show (Ex5 l r) = show l ++ show r
 
 instance Show Ex5' where
-  show (Ex5' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex5' op l r) = show op ++ show l ++ show r
   show NIL5 = ""
 
 data Ex6
@@ -186,7 +186,7 @@ instance Show Ex6 where
   show (Ex6 l r) = show l ++ show r
 
 instance Show Ex6' where
-  show (Ex6' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex6' op l r) = show op ++ show l ++ show r  
   show NIL6 = ""
 
 data Ex7
@@ -203,7 +203,7 @@ instance Show Ex7 where
   show (Ex7 l r) = show l ++ show r
 
 instance Show Ex7' where
-  show (Ex7' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex7' op l r) = show op ++ show l ++ show r 
   show NIL7 = ""
 
 data Ex8
@@ -220,7 +220,7 @@ instance Show Ex8 where
   show (Ex8 l r) = show l ++ show r
 
 instance Show Ex8' where
-  show (Ex8' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex8' op l r) = show op ++ show l ++ show r
   show NIL8 = ""
 
 data Ex9
@@ -237,7 +237,7 @@ instance Show Ex9 where
   show (Ex9 l r) = show l ++ show r
 
 instance Show Ex9' where
-  show (Ex9' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex9' op l r) = show op ++ show l ++ show r
   show NIL9 = ""
 
 data Ex10
@@ -254,7 +254,7 @@ instance Show Ex10 where
   show (Ex10 l r) = show l ++ show r
 
 instance Show Ex10' where
-  show (Ex10' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex10' op l r) = show op ++ show l ++ show r 
   show NIL10 = ""
 
 data Ex11
@@ -266,7 +266,7 @@ data Ex11
   deriving (Eq)
 
 instance Show Ex11 where
-  show (Ex11 op r) = " " ++ show op ++ show r
+  show (Ex11 op r) =   show op ++ show r 
   show (EX12 ex) = show ex
 
 data Ex12
@@ -283,7 +283,7 @@ instance Show Ex12 where
   show (Ex12 l r) = show l ++ show r
 
 instance Show Ex12' where
-  show (Ex12' op l r) = " " ++ show op ++ " " ++ show l ++ show r
+  show (Ex12' op l r) = show op ++ show l ++ show r 
   show NIL12 = ""
 
 data NamedVar = NamedVar String
