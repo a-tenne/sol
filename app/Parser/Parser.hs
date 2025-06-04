@@ -4,7 +4,7 @@ import AST
 import Control.Monad (void)
 import Control.Monad.Extra (anyM)
 import Parser.Op
-import Text.Parsec (char, digit, lookAhead, many, space, string, many1)
+import Text.Parsec (char, digit, lookAhead, many, many1, space, string)
 import Text.Parsec.Prim ((<|>))
 import Text.Parsec.String (Parser)
 
@@ -20,219 +20,172 @@ checkMulti = anyM checkSingle
 checkChar :: Char -> Parser Bool
 checkChar x = lookAhead (char x >> return True) <|> return False
 
-num :: Parser Integer
+num :: Parser Expr
 num = do
   skipSpace
   n <- many1 digit
-  return $ read n
+  check <- checkMulti [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^"]
+  if not check then fail "Malformed number"
+  else return (LiteralExpr (IntLit $ read n))
 
-ex1 :: Parser Ex1
-ex1 = do
-  skipSpace
-  l <- ex2
-  r <- ex1'
-  return Ex1 {lhs1 = l, rhs1 = r}
+ex1 :: Parser Expr
+ex1 = skipSpace >> ex2 >>= ex1'
 
-ex1' :: Parser Ex1'
-ex1' = do
+ex1' :: Expr -> Parser Expr
+ex1' l = do
   skipSpace
   check <- checkSingle "or"
   if not check
-    then return NIL1
+    then return l
     else do
       op <- oper1
-      l <- ex2
-      r <- ex1'
-      return Ex1' {op1 = op, lhs'1 = l, rhs'1 = r}
+      r <- ex2
+      ex1' (BinExpr l op r)
 
-ex2 :: Parser Ex2
-ex2 = do
-  l <- ex3
-  r <- ex2'
-  return Ex2 {lhs2 = l, rhs2 = r}
+ex2 :: Parser Expr
+ex2 = skipSpace >> ex3 >>= ex2'
 
-ex2' :: Parser Ex2'
-ex2' = do
+ex2' :: Expr -> Parser Expr
+ex2' l = do
   skipSpace
   check <- checkSingle "and"
   if not check
-    then return NIL2
+    then return l
     else do
       op <- oper2
-      l <- ex3
-      r <- ex2'
-      return Ex2' {op2 = op, lhs'2 = l, rhs'2 = r}
+      r <- ex3
+      ex2' (BinExpr l op r)
 
-ex3 :: Parser Ex3
-ex3 = do
-  l <- ex4
-  r <- ex3'
-  return Ex3 {lhs3 = l, rhs3 = r}
+ex3 :: Parser Expr
+ex3 = skipSpace >> ex4 >>= ex3'
 
-ex3' :: Parser Ex3'
-ex3' = do
+ex3' :: Expr -> Parser Expr
+ex3' l = do
   skipSpace
   check <- checkMulti ["<=", ">=", "<", ">", "~=", "=="]
   if not check
-    then return NIL3
+    then return l
     else do
       op <- oper3
-      l <- ex4
-      r <- ex3'
-      return Ex3' {op3 = op, lhs'3 = l, rhs'3 = r}
+      r <- ex4
+      ex3' (BinExpr l op r)
 
-ex4 :: Parser Ex4
-ex4 = do
-  l <- ex5
-  r <- ex4'
-  return Ex4 {lhs4 = l, rhs4 = r}
+ex4 :: Parser Expr
+ex4 = skipSpace >> ex5 >>= ex4'
 
-ex4' :: Parser Ex4'
-ex4' = do
+ex4' :: Expr -> Parser Expr
+ex4' l = do
   skipSpace
   check <- checkSingle "|"
   if not check
-    then return NIL4
+    then return l
     else do
       op <- oper4
-      l <- ex5
-      r <- ex4'
-      return Ex4' {op4 = op, lhs'4 = l, rhs'4 = r}
+      r <- ex5
+      ex4' (BinExpr l op r)
 
-ex5 :: Parser Ex5
-ex5 = do
-  l <- ex6
-  r <- ex5'
-  return Ex5 {lhs5 = l, rhs5 = r}
+ex5 :: Parser Expr
+ex5 = skipSpace >> ex6 >>= ex5'
 
-ex5' :: Parser Ex5'
-ex5' = do
+ex5' :: Expr -> Parser Expr
+ex5' l = do
   skipSpace
   check <- checkSingle "~"
   if not check
-    then return NIL5
+    then return l
     else do
       op <- oper5
-      l <- ex6
-      r <- ex5'
-      return Ex5' {op5 = op, lhs'5 = l, rhs'5 = r}
+      r <- ex6
+      ex5' (BinExpr l op r)
 
-ex6 :: Parser Ex6
-ex6 = do
-  l <- ex7
-  r <- ex6'
-  return Ex6 {lhs6 = l, rhs6 = r}
+ex6 :: Parser Expr
+ex6 = skipSpace >> ex7 >>= ex6'
 
-ex6' :: Parser Ex6'
-ex6' = do
+ex6' :: Expr -> Parser Expr
+ex6' l = do
   skipSpace
   check <- checkSingle "&"
   if not check
-    then return NIL6
+    then return l
     else do
       op <- oper6
-      l <- ex7
-      r <- ex6'
-      return Ex6' {op6 = op, lhs'6 = l, rhs'6 = r}
+      r <- ex7
+      ex6' (BinExpr l op r)
 
-ex7 :: Parser Ex7
-ex7 = do
-  l <- ex8
-  r <- ex7'
-  return Ex7 {lhs7 = l, rhs7 = r}
+ex7 :: Parser Expr
+ex7 = skipSpace >> ex8 >>= ex7'
 
-ex7' :: Parser Ex7'
-ex7' = do
+ex7' :: Expr -> Parser Expr
+ex7' l = do
   skipSpace
   check <- checkMulti ["<<", ">>"]
   if not check
-    then return NIL7
+    then return l
     else do
       op <- oper7
-      l <- ex8
-      r <- ex7'
-      return Ex7' {op7 = op, lhs'7 = l, rhs'7 = r}
+      r <- ex8
+      ex7' (BinExpr l op r)
 
-ex8 :: Parser Ex8
-ex8 = do
-  l <- ex9
-  r <- ex8'
-  return Ex8 {lhs8 = l, rhs8 = r}
+ex8 :: Parser Expr
+ex8 = skipSpace >> ex9 >>= ex8'
 
-ex8' :: Parser Ex8'
-ex8' = do
+ex8' :: Expr -> Parser Expr
+ex8' l = do
   skipSpace
   check <- checkSingle ".."
   if not check
-    then return NIL8
+    then return l
     else do
       op <- oper8
-      l <- ex9
-      r <- ex8'
-      return Ex8' {op8 = op, lhs'8 = l, rhs'8 = r}
+      r <- ex9
+      ex8' (BinExpr l op r)
 
-ex9 :: Parser Ex9
-ex9 = do
-  l <- ex10
-  r <- ex9'
-  return Ex9 {lhs9 = l, rhs9 = r}
+ex9 :: Parser Expr
+ex9 = skipSpace >> ex10 >>= ex9'
 
-ex9' :: Parser Ex9'
-ex9' = do
+ex9' :: Expr -> Parser Expr
+ex9' l = do
   skipSpace
   check <- checkMulti ["+", "-"]
   if not check
-    then return NIL9
+    then return l
     else do
       op <- oper9
-      l <- ex10
-      r <- ex9'
-      return Ex9' {op9 = op, lhs'9 = l, rhs'9 = r}
+      r <- ex10
+      ex9' (BinExpr l op r)
 
-ex10 :: Parser Ex10
-ex10 = do
-  l <- ex11
-  r <- ex10'
-  return Ex10 {lhs10 = l, rhs10 = r}
+ex10 :: Parser Expr
+ex10 = skipSpace >> ex11 >>= ex10'
 
-ex10' :: Parser Ex10'
-ex10' = do
+ex10' :: Expr -> Parser Expr
+ex10' l = do
   skipSpace
   check <- checkMulti ["*", "/", "//", "%"]
   if not check
-    then return NIL10
+    then return l
     else do
       op <- oper10
-      l <- ex11
-      r <- ex10'
-      return Ex10' {op10 = op, lhs'10 = l, rhs'10 = r}
+      r <- ex11
+      ex10' (BinExpr l op r)
 
-ex11 :: Parser Ex11
+ex11 :: Parser Expr
 ex11 = do
   skipSpace
   check <- checkMulti ["not ", "#", "-", "~"]
   if not check
-    then EX12 <$> ex12
-    else do
-      op <- oper11
-      r <- ex11
-      return Ex11 {op11 = op, rhs11 = r}
+    then ex12
+    else UnaryExpr <$> oper11 <*> ex11
 
-ex12 :: Parser Ex12
-ex12 = do
-  skipSpace
-  l <- num
-  r <- ex12'
-  return Ex12 {lhs12 = l, rhs12 = r}
+ex12 :: Parser Expr
+ex12 = skipSpace >> num >>= ex12'
 
-ex12' :: Parser Ex12'
-ex12' = do
+ex12' :: Expr -> Parser Expr
+ex12' l = do
   skipSpace
   check <- checkSingle "^"
   if not check
-    then return NIL12
+    then return l
     else do
       op <- oper12
-      l <- num
-      r <- ex12'
-      return Ex12' {op12 = op, lhs'12 = l, rhs'12 = r}
+      r <- num
+      ex12' (BinExpr l op r)

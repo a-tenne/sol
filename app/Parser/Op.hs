@@ -21,38 +21,38 @@ opMulti strs opers = do
 opSingle :: (Show a, Eq a) => String -> a -> Parser a
 opSingle x y = string x >> return y
 
-oper1 :: Parser OP1
+oper1 :: Parser BIN_OP
 oper1 = opSingle "or" OR
 
-oper2 :: Parser OP2
+oper2 :: Parser BIN_OP
 oper2 = opSingle "and" AND
 
-oper3 :: Parser OP3
+oper3 :: Parser BIN_OP
 oper3 = opMulti ["<=", ">=", "<", ">", "~=", "=="] [LE, GE, LT, GT, NE, EQ]
 
-oper4 :: Parser OP4
+oper4 :: Parser BIN_OP
 oper4 = opSingle "|" B_OR
 
-oper5 :: Parser OP5
+oper5 :: Parser BIN_OP
 oper5 = opSingle "~" B_XOR
 
-oper6 :: Parser OP6
+oper6 :: Parser BIN_OP
 oper6 = opSingle "&" B_AND
 
-oper7 :: Parser OP7
+oper7 :: Parser BIN_OP
 oper7 = opMulti ["<<", ">>"] [LSHIFT, RSHIFT]
 
-oper8 :: Parser OP8
+oper8 :: Parser BIN_OP
 oper8 = opSingle ".." CONCAT
 
-oper9 :: Parser OP9
+oper9 :: Parser BIN_OP
 oper9 = opMulti ["+", "-"] [PLUS, MINUS]
 
-oper10 :: Parser OP10
+oper10 :: Parser BIN_OP
 oper10 = opMulti ["*", "//", "/", "%"] [MULT, INT_DIV, DIV, MOD]
 
-oper11 :: Parser OP11
-oper11 = opMulti ["not", "#", "-", "~"] [NOT, INDEX, U_MINUS, B_NOT]
+oper11 :: Parser U_OP
+oper11 = opMulti ["not ", "#", "-", "~"] [U_NOT, U_LEN, U_MINUS, U_B_NOT]
 
-oper12 :: Parser OP12
+oper12 :: Parser BIN_OP
 oper12 = opSingle "^" EXP
