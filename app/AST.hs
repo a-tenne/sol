@@ -38,11 +38,12 @@ instance Show U_OP where
   show U_LEN = "#"
   show U_B_NOT = "~"
 
-data Literal = IntLit Integer
+data Literal = IntLit Integer | StringLit String
   deriving (Eq)
 
 instance Show Literal where
   show (IntLit x) = show x
+  show (StringLit x) = show x
 
 
 data Expr = BinExpr  Expr BIN_OP Expr | UnaryExpr U_OP  Expr | LiteralExpr Literal
