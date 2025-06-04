@@ -2,7 +2,11 @@ module AST where
 
 import Prelude hiding (EQ, GT, LT)
 
-data OP1 = OR
+data BIN_OP = OR | AND | LE | GE | LT | GT | NE | EQ | B_OR | B_XOR | B_AND | LSHIFT | RSHIFT | CONCAT | PLUS | MINUS | MULT | DIV | INT_DIV | MOD | EXP
+
+data U_OP = U_NOT | U_MINUS | U_LEN | U_B_NOT
+
+{- data OP1 = OR
   deriving (Eq)
 
 instance Show OP1 where
@@ -135,7 +139,7 @@ instance Show Ex3 where
   show (Ex3 l r) = show l ++ show r
 
 instance Show Ex3' where
-  show (Ex3' op l r) = show op ++ show l ++ show r 
+  show (Ex3' op l r) = show op ++ show l ++ show r
   show NIL3 = ""
 
 data Ex4
@@ -186,7 +190,7 @@ instance Show Ex6 where
   show (Ex6 l r) = show l ++ show r
 
 instance Show Ex6' where
-  show (Ex6' op l r) = show op ++ show l ++ show r  
+  show (Ex6' op l r) = show op ++ show l ++ show r
   show NIL6 = ""
 
 data Ex7
@@ -203,7 +207,7 @@ instance Show Ex7 where
   show (Ex7 l r) = show l ++ show r
 
 instance Show Ex7' where
-  show (Ex7' op l r) = show op ++ show l ++ show r 
+  show (Ex7' op l r) = show op ++ show l ++ show r
   show NIL7 = ""
 
 data Ex8
@@ -254,7 +258,7 @@ instance Show Ex10 where
   show (Ex10 l r) = show l ++ show r
 
 instance Show Ex10' where
-  show (Ex10' op l r) = show op ++ show l ++ show r 
+  show (Ex10' op l r) = show op ++ show l ++ show r
   show NIL10 = ""
 
 data Ex11
@@ -266,7 +270,7 @@ data Ex11
   deriving (Eq)
 
 instance Show Ex11 where
-  show (Ex11 op r) =   show op ++ show r 
+  show (Ex11 op r) = show op ++ show r
   show (EX12 ex) = show ex
 
 data Ex12
@@ -283,10 +287,10 @@ instance Show Ex12 where
   show (Ex12 l r) = show l ++ show r
 
 instance Show Ex12' where
-  show (Ex12' op l r) = show op ++ show l ++ show r 
+  show (Ex12' op l r) = show op ++ show l ++ show r
   show NIL12 = ""
-
 data NamedVar = NamedVar String
+
   deriving (Eq)
 
 instance Show NamedVar where
@@ -300,3 +304,4 @@ instance Show Assign where
 
 data Program = Program {ls :: [Assign]}
   deriving (Eq, Show)
+  -}
