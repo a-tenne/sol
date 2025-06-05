@@ -7,7 +7,7 @@ import Parser.Parser (checkMulti, checkSingle, skipJunk)
 import Text.Parsec (anyChar, char, getInput, many, manyTill, oneOf, satisfy, string, try, (<|>))
 import Text.Parsec.String (Parser)
 import Parser.Nums
-
+import Data.Functor (($>))
 
 num :: Parser Expr
 num = do
@@ -24,21 +24,33 @@ num = do
 
 singleLineStr :: Parser Expr
 singleLineStr = do
-  skipJunk
   start <- oneOf "\"'"
   str <- manyTill (satisfy (/= '\n')) (char start)
   return $ LiteralExpr (StringLit str)
 
 multiLineStr :: Parser Expr
 multiLineStr =
-  skipJunk >> char '[' >> do
+    char '[' >> do
     levelStr <- many $ char '='
     void $ char '['
     str <- manyTill anyChar (string $ "]" ++ levelStr ++ "]")
     return $ LiteralExpr (StringLit str)
 
+tripleDot :: Parser Expr
+tripleDot = string "..." $> LiteralExpr TRIPLE_DOT
+
+true :: Parser Expr
+true = string "true" $> LiteralExpr TRUE
+
+false :: Parser Expr
+false = string "false" $> LiteralExpr FALSE
+
+nil :: Parser Expr
+nil = string "nil" $> LiteralExpr NIL
+
+
 literalExpr :: Parser Expr
-literalExpr = try num <|> try singleLineStr <|> try multiLineStr
+literalExpr = skipJunk >> try (num <|> singleLineStr <|> multiLineStr <|> true <|> false <|> tripleDot <|> nil)
 
 ex1 :: Parser Expr
 ex1 = skipJunk >> ex2 >>= ex1'

@@ -3,27 +3,19 @@ module Parser.Nums where
 import AST
 import Control.Monad (void)
 import Data.Char (toLower)
-import Numeric (readHex)
-import Parser.Parser
 import Text.Parsec (char, digit, hexDigit, many, many1, oneOf, optionMaybe, try, (<|>))
 import Text.Parsec.String (Parser)
 
-hexInt :: Bool -> Parser Integer
-hexInt isPrefixed = do
-  if isPrefixed
-    then do
-      void $ char '0' >> try (char 'x' <|> char 'X')
-    else do
-      return ()
-  digits <- many1 hexDigit
-  case readHex digits of
-    [(n, "")] -> return n
-    _ -> fail ""
+hexInt :: Parser Integer
+hexInt = do
+  void $ char '0' >> try (char 'x' <|> char 'X')
+  digits <- map (toInteger . hexToInt) <$> many1 hexDigit
+  let hexVals = zipWith (*) [16 ^ x | x <- [0..(length digits - 1)]] (reverse digits)
+  return $ sum hexVals
 
 numInt :: Parser Numeric
 numInt = do
-  skipJunk
-  val <- try $ hexInt True <|> read <$> many1 digit
+  val <- try $ hexInt <|> read <$> many1 digit
   return $ NumInt val
 
 hexDoubleExp :: Parser (Bool, Double -> Double)
@@ -54,8 +46,7 @@ hexToInt = hexToIntHelper hexToIntTable
 
 hexDouble :: Parser Numeric
 hexDouble = do
-  skipJunk
-  integerPart <- hexInt True
+  integerPart <- hexInt
   let start :: Double = fromIntegral integerPart
   middle <- optionMaybe $ char '.'
   case middle of
