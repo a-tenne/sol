@@ -1,8 +1,9 @@
 module Parser.Parser where
 import Text.Parsec.String (Parser)
 import Control.Monad (void)
-import Text.Parsec (many, space, (<|>), string, lookAhead, char, manyTill, anyChar, try, skipMany)
+import Text.Parsec (many, space, (<|>), string, lookAhead, char, manyTill, anyChar, try, skipMany, getInput)
 import Control.Monad.Extra (anyM)
+import Control.Monad (when)
 
 skipSpace :: Parser ()
 skipSpace = void $ many space
@@ -16,10 +17,10 @@ checkMulti = anyM checkSingle
 checkChar :: Char -> Parser Bool
 checkChar x = lookAhead (char x >> return True) <|> return False
 
-singleLineComment :: Parser ()
-singleLineComment = do
+skipComment :: Parser ()
+skipComment = do
   void $ string "--"
-  void $ manyTill anyChar (char '\n')
+  try multiLineComment <|> void (manyTill anyChar (char '\n'))
 
 multiLineComment :: Parser()
 multiLineComment = do
@@ -29,8 +30,14 @@ multiLineComment = do
   void $ manyTill anyChar (string $ "]" ++ levelStr ++ "]")
 
 
-skipComment :: Parser ()
-skipComment = skipSpace >> (try singleLineComment <|> try multiLineComment)
-
 skipComments :: Parser ()
-skipComments = skipMany skipComment
+skipComments = void $ many skipComment
+
+skipJunk :: Parser ()
+skipJunk = do
+  before <- getInput
+  skipSpace
+  try skipComments <|> return ()
+  after <- getInput
+  when (before /= after) skipJunk
+

@@ -3,28 +3,33 @@ module Parser.Expr where
 import AST
 import Control.Monad (void)
 import Parser.Op
-import Parser.Parser
-import Text.Parsec (anyChar, char, digit, many, many1, manyTill, satisfy, string, (<|>), try)
+import Parser.Parser (checkMulti, checkSingle, skipJunk)
+import Text.Parsec (anyChar, char, digit, getInput, many, many1, manyTill, satisfy, string, try, (<|>))
 import Text.Parsec.String (Parser)
 
 num :: Parser Expr
 num = do
-  skipSpace
+  skipJunk
   n <- many1 digit
-  check <- checkMulti [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^"]
+  check <- checkMulti [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n"]
   if not check
-    then fail "Malformed number"
+    then do
+      input <- getInput
+      if null input
+        then
+          return $ LiteralExpr (IntLit $ read n)
+        else fail "Malformed number"
     else return $ LiteralExpr (IntLit $ read n)
 
 singleLineStr :: Parser Expr
 singleLineStr =
-  skipSpace >> char '"' >> do
+  skipJunk >> char '"' >> do
     str <- manyTill (satisfy (/= '\n')) (char '"')
     return $ LiteralExpr (StringLit str)
 
 multiLineStr :: Parser Expr
 multiLineStr =
-  skipSpace >> char '[' >> do
+  skipJunk >> char '[' >> do
     levelStr <- many $ char '='
     void $ char '['
     str <- manyTill anyChar (string $ "]" ++ levelStr ++ "]")
@@ -34,11 +39,11 @@ literalExpr :: Parser Expr
 literalExpr = try num <|> try singleLineStr <|> try multiLineStr
 
 ex1 :: Parser Expr
-ex1 = skipSpace >> ex2 >>= ex1'
+ex1 = skipJunk >> ex2 >>= ex1'
 
 ex1' :: Expr -> Parser Expr
 ex1' l = do
-  skipSpace
+  skipJunk
   check <- checkSingle "or"
   if not check
     then return l
@@ -48,11 +53,11 @@ ex1' l = do
       ex1' $ BinExpr l op r
 
 ex2 :: Parser Expr
-ex2 = skipSpace >> ex3 >>= ex2'
+ex2 = skipJunk >> ex3 >>= ex2'
 
 ex2' :: Expr -> Parser Expr
 ex2' l = do
-  skipSpace
+  skipJunk
   check <- checkSingle "and"
   if not check
     then return l
@@ -62,11 +67,11 @@ ex2' l = do
       ex2' $ BinExpr l op r
 
 ex3 :: Parser Expr
-ex3 = skipSpace >> ex4 >>= ex3'
+ex3 = skipJunk >> ex4 >>= ex3'
 
 ex3' :: Expr -> Parser Expr
 ex3' l = do
-  skipSpace
+  skipJunk
   check <- checkMulti ["<=", ">=", "<", ">", "~=", "=="]
   if not check
     then return l
@@ -76,11 +81,11 @@ ex3' l = do
       ex3' $ BinExpr l op r
 
 ex4 :: Parser Expr
-ex4 = skipSpace >> ex5 >>= ex4'
+ex4 = skipJunk >> ex5 >>= ex4'
 
 ex4' :: Expr -> Parser Expr
 ex4' l = do
-  skipSpace
+  skipJunk
   check <- checkSingle "|"
   if not check
     then return l
@@ -90,11 +95,11 @@ ex4' l = do
       ex4' $ BinExpr l op r
 
 ex5 :: Parser Expr
-ex5 = skipSpace >> ex6 >>= ex5'
+ex5 = skipJunk >> ex6 >>= ex5'
 
 ex5' :: Expr -> Parser Expr
 ex5' l = do
-  skipSpace
+  skipJunk
   check <- checkSingle "~"
   if not check
     then return l
@@ -104,11 +109,11 @@ ex5' l = do
       ex5' $ BinExpr l op r
 
 ex6 :: Parser Expr
-ex6 = skipSpace >> ex7 >>= ex6'
+ex6 = skipJunk >> ex7 >>= ex6'
 
 ex6' :: Expr -> Parser Expr
 ex6' l = do
-  skipSpace
+  skipJunk
   check <- checkSingle "&"
   if not check
     then return l
@@ -118,11 +123,11 @@ ex6' l = do
       ex6' $ BinExpr l op r
 
 ex7 :: Parser Expr
-ex7 = skipSpace >> ex8 >>= ex7'
+ex7 = skipJunk >> ex8 >>= ex7'
 
 ex7' :: Expr -> Parser Expr
 ex7' l = do
-  skipSpace
+  skipJunk
   check <- checkMulti ["<<", ">>"]
   if not check
     then return l
@@ -132,11 +137,11 @@ ex7' l = do
       ex7' $ BinExpr l op r
 
 ex8 :: Parser Expr
-ex8 = skipSpace >> ex9 >>= ex8'
+ex8 = skipJunk >> ex9 >>= ex8'
 
 ex8' :: Expr -> Parser Expr
 ex8' l = do
-  skipSpace
+  skipJunk
   check <- checkSingle ".."
   if not check
     then return l
@@ -146,11 +151,11 @@ ex8' l = do
       ex8' $ BinExpr l op r
 
 ex9 :: Parser Expr
-ex9 = skipSpace >> ex10 >>= ex9'
+ex9 = skipJunk >> ex10 >>= ex9'
 
 ex9' :: Expr -> Parser Expr
 ex9' l = do
-  skipSpace
+  skipJunk
   check <- checkMulti ["+", "-"]
   if not check
     then return l
@@ -160,11 +165,11 @@ ex9' l = do
       ex9' $ BinExpr l op r
 
 ex10 :: Parser Expr
-ex10 = skipSpace >> ex11 >>= ex10'
+ex10 = skipJunk >> ex11 >>= ex10'
 
 ex10' :: Expr -> Parser Expr
 ex10' l = do
-  skipSpace
+  skipJunk
   check <- checkMulti ["*", "/", "//", "%"]
   if not check
     then return l
@@ -175,18 +180,18 @@ ex10' l = do
 
 ex11 :: Parser Expr
 ex11 = do
-  skipSpace
+  skipJunk
   check <- checkMulti ["not ", "#", "-", "~"]
   if not check
     then ex12
     else UnaryExpr <$> oper11 <*> ex11
 
 ex12 :: Parser Expr
-ex12 = skipSpace >> literalExpr >>= ex12'
+ex12 = skipJunk >> literalExpr >>= ex12'
 
 ex12' :: Expr -> Parser Expr
 ex12' l = do
-  skipSpace
+  skipJunk
   check <- checkSingle "^"
   if not check
     then return l
