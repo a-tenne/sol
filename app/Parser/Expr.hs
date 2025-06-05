@@ -2,15 +2,21 @@ module Parser.Expr where
 
 import AST
 import Control.Monad (void)
+import Numeric (readHex)
 import Parser.Op
 import Parser.Parser (checkMulti, checkSingle, skipJunk)
-import Text.Parsec (anyChar, char, digit, getInput, many, many1, manyTill, satisfy, string, try, (<|>), oneOf, hexDigit, optional, optionMaybe)
+import Text.Parsec (anyChar, char, digit, getInput, hexDigit, many, many1, manyTill, oneOf, optionMaybe, satisfy, string, try, (<|>))
 import Text.Parsec.String (Parser)
-import Numeric (readHex)
+import Data.Bits (Bits(shift))
+import Data.Char (toLower)
 
-hexInt :: Parser Integer
-hexInt = do
-  void $ string "0x"
+hexInt :: Bool -> Parser Integer
+hexInt isPrefixed = do
+  if isPrefixed
+    then do
+      void $ string "0x"
+    else do
+      return ()
   digits <- many1 hexDigit
   case readHex digits of
     [(n, "")] -> return n
@@ -19,12 +25,53 @@ hexInt = do
 numInt :: Parser Integer
 numInt = do
   skipJunk
-  try hexInt <|> read <$> many1 digit
+  try $ hexInt True <|> read <$> many1 digit
+
+hexDoubleExp :: Parser (Char, (Double -> Double))
+hexDoubleExp = do
+  expKind <- oneOf "eE" <|> oneOf "pP"
+  signOpt <- optionMaybe $ oneOf "+-"
+  let sign :: Double -> Double = case signOpt of
+            Just x -> if x == '-' then (*(-1.0)) else (*1.0)
+            Nothing -> (*1.0)
+  return (expKind, sign)
+
+hexApplyExp :: Char -> Double -> (Double -> Double) -> Double -> Double
+hexApplyExp expKind lhs sign rhs =
+  if 'e' == toLower expKind then
+    lhs ** sign rhs
+  else
+    lhs * (2.0 ** sign rhs)
+
+
+
+hexDouble :: Parser Double
+hexDouble = do
+  skipJunk
+  integerPart <- hexInt True
+  let start :: Double = fromIntegral integerPart
+  middle <- optionMaybe $ char '.'
+  case middle of
+    Just _ -> do
+      precision <- hexInt False
+      (expKind, sign) <- hexDoubleExp
+      digits <- many digit
+      let rhs = if null digits then 1 else read digits
+      let precisionList :: [Double] = [(\ (a, b) -> read [b] / a) (16.0 ** y, z) |
+                           y <- [1.0 .. ], z <- show precision]
+      let lhs = foldl (+) start precisionList
+      return $ hexApplyExp expKind lhs sign rhs
+    Nothing -> do
+      (expKind, sign) <- hexDoubleExp
+      digits <- many digit
+      let rhs :: Double = if null digits then 1.0 else read digits
+      return $ hexApplyExp expKind start sign rhs
 
 numDoubleExp :: Parser String
 numDoubleExp = do
   sign <- optionMaybe $ oneOf "+-"
-  end <- many1 digit
+  digits <- many digit
+  let end = if null digits then "1" else digits
   case sign of
     Just x -> return $ x : end
     Nothing -> return end
@@ -33,13 +80,12 @@ numDouble :: Parser Double
 numDouble = do
   firstHalf <- many1 digit
   middle <- optionMaybe $ char '.'
-  secondHalf <-  case middle of
-        Just x -> do
-          numbers <- many1 digit
-          return $ x : numbers
-        Nothing -> return ""
-      
-      
+  secondHalf <- case middle of
+    Just x -> do
+      numbers <- many1 digit
+      return $ x : numbers
+    Nothing -> return ""
+
   end <- optionMaybe $ oneOf "eE"
   case end of
     Just x -> do
@@ -236,7 +282,8 @@ ex12' :: Expr -> Parser Expr
 ex12' l = do
   skipJunk
   check <- checkSingle "^"
-  if not check then return l
+  if not check
+    then return l
     else do
       op <- oper12
       r <- literalExpr
