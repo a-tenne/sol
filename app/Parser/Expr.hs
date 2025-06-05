@@ -2,19 +2,18 @@ module Parser.Expr where
 
 import AST
 import Control.Monad (void)
+import Data.Char (toLower)
 import Numeric (readHex)
 import Parser.Op
 import Parser.Parser (checkMulti, checkSingle, skipJunk)
 import Text.Parsec (anyChar, char, digit, getInput, hexDigit, many, many1, manyTill, oneOf, optionMaybe, satisfy, string, try, (<|>))
 import Text.Parsec.String (Parser)
-import Data.Bits (Bits(shift))
-import Data.Char (toLower)
 
 hexInt :: Bool -> Parser Integer
 hexInt isPrefixed = do
   if isPrefixed
     then do
-      void $ string "0x"
+      void $ char '0' >> try (char 'x' <|> char 'X')
     else do
       return ()
   digits <- many1 hexDigit
@@ -22,30 +21,42 @@ hexInt isPrefixed = do
     [(n, "")] -> return n
     _ -> fail ""
 
-numInt :: Parser Integer
+numInt :: Parser Numeric
 numInt = do
   skipJunk
-  try $ hexInt True <|> read <$> many1 digit
+  val <- try $ hexInt True <|> read <$> many1 digit
+  return $ NumInt val
 
-hexDoubleExp :: Parser (Char, (Double -> Double))
+hexDoubleExp :: Parser (Char, Double -> Double)
 hexDoubleExp = do
-  expKind <- oneOf "eE" <|> oneOf "pP"
+  expKind <- try (oneOf "eE" <|> oneOf "pP") <|> return 'e'
   signOpt <- optionMaybe $ oneOf "+-"
   let sign :: Double -> Double = case signOpt of
-            Just x -> if x == '-' then (*(-1.0)) else (*1.0)
-            Nothing -> (*1.0)
+        Just x -> if x == '-' then (* (-1.0)) else (* 1.0)
+        Nothing -> (* 1.0)
   return (expKind, sign)
 
 hexApplyExp :: Char -> Double -> (Double -> Double) -> Double -> Double
 hexApplyExp expKind lhs sign rhs =
-  if 'e' == toLower expKind then
-    lhs ** sign rhs
-  else
-    lhs * (2.0 ** sign rhs)
+  if 'e' == toLower expKind
+    then
+      lhs ** sign rhs
+    else
+      lhs * (2.0 ** sign rhs)
 
+hexToIntTable :: [(Char, Int)]
+hexToIntTable = zip ['0'..'9'] [0..9] ++ zip ['a'..'f'] [10..15]
 
+hexToIntHelper :: [(Char, Int)] -> Char -> Int
+hexToIntHelper [] _ = error "Internal error: Invalid hex digit"
+hexToIntHelper ((x, y) : xs) z
+  | x == toLower z = y
+  | otherwise = hexToIntHelper xs z
 
-hexDouble :: Parser Double
+hexToInt :: Char -> Int
+hexToInt = hexToIntHelper hexToIntTable
+
+hexDouble :: Parser Numeric
 hexDouble = do
   skipJunk
   integerPart <- hexInt True
@@ -57,15 +68,14 @@ hexDouble = do
       (expKind, sign) <- hexDoubleExp
       digits <- many digit
       let rhs = if null digits then 1 else read digits
-      let precisionList :: [Double] = [(\ (a, b) -> read [b] / a) (16.0 ** y, z) |
-                           y <- [1.0 .. ], z <- show precision]
+      let precisionList :: [Double] = zipWith (\ a b -> fromIntegral (hexToInt b) / a) (map (16 **) [1.0 .. fromIntegral $ length $ show precision]) (show precision)
       let lhs = foldl (+) start precisionList
-      return $ hexApplyExp expKind lhs sign rhs
+      return $ NumDouble $ hexApplyExp expKind lhs sign rhs
     Nothing -> do
       (expKind, sign) <- hexDoubleExp
       digits <- many digit
       let rhs :: Double = if null digits then 1.0 else read digits
-      return $ hexApplyExp expKind start sign rhs
+      return $ NumDouble $ hexApplyExp expKind start sign rhs
 
 numDoubleExp :: Parser String
 numDoubleExp = do
@@ -76,35 +86,41 @@ numDoubleExp = do
     Just x -> return $ x : end
     Nothing -> return end
 
-numDouble :: Parser Double
-numDouble = do
-  firstHalf <- many1 digit
-  middle <- optionMaybe $ char '.'
-  secondHalf <- case middle of
-    Just x -> do
-      numbers <- many1 digit
-      return $ x : numbers
-    Nothing -> return ""
+numDouble :: Parser Numeric
+numDouble =
+  try hexDouble <|> do
+    firstHalf <- many1 digit
+    middle <- optionMaybe $ char '.'
+    secondHalf <- case middle of
+      Just x -> do
+        numbers <- many1 digit
+        return $ x : numbers
+      Nothing -> return ""
 
-  end <- optionMaybe $ oneOf "eE"
-  case end of
-    Just x -> do
-      doubleExp <- numDoubleExp
-      return $ read $ firstHalf ++ secondHalf ++ [x] ++ doubleExp
-    Nothing -> return $ read $ firstHalf ++ secondHalf
+    end :: Maybe Char <-
+      if null secondHalf
+        then do
+          Just <$> oneOf "eE"
+        else optionMaybe $ oneOf "eE"
+
+    case end of
+      Just x -> do
+        doubleExp <- numDoubleExp
+        return $ NumDouble $ read $ firstHalf ++ secondHalf ++ [x] ++ doubleExp
+      Nothing -> return $ NumDouble $ read $ firstHalf ++ secondHalf
 
 num :: Parser Expr
 num = do
-  n <- numInt
+  n <- try numDouble <|> numInt
   check <- checkMulti [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n", ")"]
   if not check
     then do
       input <- getInput
       if null input
         then
-          return $ LiteralExpr (NumLit $ NumInt n)
+          return $ LiteralExpr (NumLit n)
         else fail "Malformed number"
-    else return $ LiteralExpr (NumLit $ NumInt n)
+    else return $ LiteralExpr (NumLit n)
 
 singleLineStr :: Parser Expr
 singleLineStr = do
