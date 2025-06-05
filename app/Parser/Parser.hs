@@ -1,9 +1,8 @@
 module Parser.Parser where
 import Text.Parsec.String (Parser)
-import Control.Monad (void)
-import Text.Parsec (many, space, (<|>), string, lookAhead, char, manyTill, anyChar, try, skipMany, getInput)
+import Control.Monad ( void, when )
+import Text.Parsec (many, space, (<|>), string, lookAhead, char, manyTill, anyChar, try, getInput)
 import Control.Monad.Extra (anyM)
-import Control.Monad (when)
 
 skipSpace :: Parser ()
 skipSpace = void $ many space

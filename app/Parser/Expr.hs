@@ -11,7 +11,7 @@ num :: Parser Expr
 num = do
   skipJunk
   n <- many1 digit
-  check <- checkMulti [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n"]
+  check <- checkMulti [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n", ")"]
   if not check
     then do
       input <- getInput
@@ -187,15 +187,24 @@ ex11 = do
     else UnaryExpr <$> oper11 <*> ex11
 
 ex12 :: Parser Expr
-ex12 = skipJunk >> literalExpr >>= ex12'
+ex12 = do 
+  skipJunk 
+  l <- try literalExpr <|> subEx
+  ex12' l
 
 ex12' :: Expr -> Parser Expr
 ex12' l = do
   skipJunk
   check <- checkSingle "^"
-  if not check
-    then return l
+  if not check then return l
     else do
       op <- oper12
       r <- literalExpr
       ex12' $ BinExpr l op r
+
+subEx :: Parser Expr
+subEx = do
+  void $ char '('
+  expr <- ex1
+  void $ char ')'
+  return expr
