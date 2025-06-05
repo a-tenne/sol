@@ -38,12 +38,23 @@ instance Show U_OP where
   show U_LEN = "#"
   show U_B_NOT = "~"
 
-data Literal = IntLit Integer | StringLit String
+data Numeric = NumInt Integer | NumDouble Double
+  deriving (Eq)
+
+instance Show Numeric where
+  show (NumInt x) = show x
+  show (NumDouble x) = show x
+
+data Literal = NumLit Numeric | StringLit String | NIL | TRUE | FALSE | TRIPLE_DOT
   deriving (Eq)
 
 instance Show Literal where
-  show (IntLit x) = show x
+  show (NumLit x) = show x
   show (StringLit x) = show x
+  show NIL = show "nil"
+  show TRUE = show "true"
+  show FALSE = show "false"
+  show TRIPLE_DOT = show "..."
 
 
 data Expr = BinExpr  Expr BIN_OP Expr | UnaryExpr U_OP  Expr | LiteralExpr Literal

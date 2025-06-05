@@ -4,28 +4,68 @@ import AST
 import Control.Monad (void)
 import Parser.Op
 import Parser.Parser (checkMulti, checkSingle, skipJunk)
-import Text.Parsec (anyChar, char, digit, getInput, many, many1, manyTill, satisfy, string, try, (<|>))
+import Text.Parsec (anyChar, char, digit, getInput, many, many1, manyTill, satisfy, string, try, (<|>), oneOf, hexDigit, optional, optionMaybe)
 import Text.Parsec.String (Parser)
+import Numeric (readHex)
+
+hexInt :: Parser Integer
+hexInt = do
+  void $ string "0x"
+  digits <- many1 hexDigit
+  case readHex digits of
+    [(n, "")] -> return n
+    _ -> fail ""
+
+numInt :: Parser Integer
+numInt = do
+  skipJunk
+  try hexInt <|> read <$> many1 digit
+
+numDoubleExp :: Parser String
+numDoubleExp = do
+  sign <- optionMaybe $ oneOf "+-"
+  end <- many1 digit
+  case sign of
+    Just x -> return $ x : end
+    Nothing -> return end
+
+numDouble :: Parser Double
+numDouble = do
+  firstHalf <- many1 digit
+  middle <- optionMaybe $ char '.'
+  secondHalf <-  case middle of
+        Just x -> do
+          numbers <- many1 digit
+          return $ x : numbers
+        Nothing -> return ""
+      
+      
+  end <- optionMaybe $ oneOf "eE"
+  case end of
+    Just x -> do
+      doubleExp <- numDoubleExp
+      return $ read $ firstHalf ++ secondHalf ++ [x] ++ doubleExp
+    Nothing -> return $ read $ firstHalf ++ secondHalf
 
 num :: Parser Expr
 num = do
-  skipJunk
-  n <- many1 digit
+  n <- numInt
   check <- checkMulti [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n", ")"]
   if not check
     then do
       input <- getInput
       if null input
         then
-          return $ LiteralExpr (IntLit $ read n)
+          return $ LiteralExpr (NumLit $ NumInt n)
         else fail "Malformed number"
-    else return $ LiteralExpr (IntLit $ read n)
+    else return $ LiteralExpr (NumLit $ NumInt n)
 
 singleLineStr :: Parser Expr
-singleLineStr =
-  skipJunk >> char '"' >> do
-    str <- manyTill (satisfy (/= '\n')) (char '"')
-    return $ LiteralExpr (StringLit str)
+singleLineStr = do
+  skipJunk
+  start <- oneOf "\"'"
+  str <- manyTill (satisfy (/= '\n')) (char start)
+  return $ LiteralExpr (StringLit str)
 
 multiLineStr :: Parser Expr
 multiLineStr =
@@ -187,8 +227,8 @@ ex11 = do
     else UnaryExpr <$> oper11 <*> ex11
 
 ex12 :: Parser Expr
-ex12 = do 
-  skipJunk 
+ex12 = do
+  skipJunk
   l <- try literalExpr <|> subEx
   ex12' l
 
