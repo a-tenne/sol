@@ -2,17 +2,19 @@ module Parser.Expr where
 
 import AST
 import Control.Monad (void)
-import Parser.Op
-import Parser.Parser (checkMulti, checkSingle, skipJunk)
-import Text.Parsec (anyChar, char, getInput, many, manyTill, oneOf, satisfy, string, try, (<|>))
-import Text.Parsec.String (Parser)
 import Parser.Nums
-import Data.Functor (($>))
+import Parser.Op
+import Parser.Parser
+import Text.Parsec (alphaNum, anyChar, char, getInput, letter, many, manyTill, oneOf, satisfy, string, try, (<|>))
+import Text.Parsec.String (Parser)
+
+validNext :: [String]
+validNext = [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n", ")"]
 
 num :: Parser Expr
 num = do
   n <- try numDouble <|> numInt
-  check <- checkMulti [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n", ")"]
+  check <- checkMulti validNext
   if not check
     then do
       input <- getInput
@@ -30,27 +32,39 @@ singleLineStr = do
 
 multiLineStr :: Parser Expr
 multiLineStr =
-    char '[' >> do
+  char '[' >> do
     levelStr <- many $ char '='
     void $ char '['
     str <- manyTill anyChar (string $ "]" ++ levelStr ++ "]")
     return $ LiteralExpr (StringLit str)
 
+litHelper :: String -> Expr -> Parser Expr
+litHelper litName exType = do
+  void $ string litName
+  check <- checkMulti validNext
+  if not check
+    then do
+      input <- getInput
+      if null input
+        then
+          return exType
+        else fail $ "Expected: " ++ litName
+    else return exType
+
 tripleDot :: Parser Expr
-tripleDot = string "..." $> LiteralExpr TRIPLE_DOT
+tripleDot = litHelper "..." TRIPLE_DOT
 
-true :: Parser Expr
-true = string "true" $> LiteralExpr TRUE
+trueEx :: Parser Expr
+trueEx = litHelper "true" TRUE
 
-false :: Parser Expr
-false = string "false" $> LiteralExpr FALSE
+falseEx :: Parser Expr
+falseEx = litHelper "false" FALSE
 
-nil :: Parser Expr
-nil = string "nil" $> LiteralExpr NIL
-
+nilEx :: Parser Expr
+nilEx = litHelper "nil" NIL
 
 literalExpr :: Parser Expr
-literalExpr = skipJunk >> try (num <|> singleLineStr <|> multiLineStr <|> true <|> false <|> tripleDot <|> nil)
+literalExpr = skipJunk >> try (num <|> singleLineStr <|> multiLineStr <|> trueEx <|> falseEx <|> tripleDot <|> nilEx)
 
 ex1 :: Parser Expr
 ex1 = skipJunk >> ex2 >>= ex1'
@@ -203,7 +217,7 @@ ex11 = do
 ex12 :: Parser Expr
 ex12 = do
   skipJunk
-  l <- try literalExpr <|> subEx
+  l <- try literalExpr <|> prefixEx
   ex12' l
 
 ex12' :: Expr -> Parser Expr
@@ -223,3 +237,15 @@ subEx = do
   expr <- ex1
   void $ char ')'
   return expr
+
+varEx :: Parser Expr
+varEx = do
+  first <- try $ letter <|> char '_'
+  rest <- many (alphaNum <|> char '_')
+  let full = first : rest
+  if full `elem` reservedKW
+    then fail $ "Cannot use reserved keyword \"" ++ full ++ "\""
+    else return $ VarExpr full
+
+prefixEx :: Parser Expr
+prefixEx = try subEx <|> varEx

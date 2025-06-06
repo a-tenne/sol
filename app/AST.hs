@@ -28,7 +28,6 @@ instance Show BIN_OP where
   show MOD = " % "
   show EXP = " ^ "
 
-
 data U_OP = U_NOT | U_MINUS | U_LEN | U_B_NOT
   deriving (Eq)
 
@@ -45,34 +44,27 @@ instance Show Numeric where
   show (NumInt x) = show x
   show (NumDouble x) = show x
 
-data Literal = NumLit Numeric | StringLit String | NIL | TRUE | FALSE | TRIPLE_DOT
+data Literal = NumLit Numeric | StringLit String
   deriving (Eq)
 
 instance Show Literal where
   show (NumLit x) = show x
   show (StringLit x) = show x
-  show NIL = show "nil"
-  show TRUE = show "true"
-  show FALSE = show "false"
-  show TRIPLE_DOT = show "..."
 
-
-data Expr = BinExpr  Expr BIN_OP Expr | UnaryExpr U_OP  Expr | LiteralExpr Literal
+data Expr = BinExpr Expr BIN_OP Expr | UnaryExpr U_OP Expr | LiteralExpr Literal | VarExpr String | NIL | TRUE | FALSE | TRIPLE_DOT
   deriving (Eq)
 
 instance Show Expr where
   show (BinExpr l op r) = "(" ++ show l ++ show op ++ show r ++ ")"
   show (UnaryExpr op r) = "(" ++ show op ++ show r ++ ")"
   show (LiteralExpr l) = show l
+  show (VarExpr name) = '$' : name
+  show NIL = "nil"
+  show TRUE = "true"
+  show FALSE = "false"
+  show TRIPLE_DOT = "..."
 
 {-
-data NamedVar = NamedVar String
-
-  deriving (Eq)
-
-instance Show NamedVar where
-  show (NamedVar name) = show name
-
 data Assign = Assign {asgnL :: NamedVar, asgnR :: Ex1}
   deriving (Eq)
 

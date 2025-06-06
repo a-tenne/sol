@@ -1,33 +1,33 @@
 module Parser.Parser where
-import Text.Parsec.String (Parser)
-import Control.Monad ( void, when )
-import Text.Parsec (many, space, (<|>), string, lookAhead, char, manyTill, anyChar, try, getInput)
+
+import Control.Monad (void, when)
 import Control.Monad.Extra (anyM)
+import Text.Parsec (anyChar, char, getInput, lookAhead, many, manyTill, space, string, try, (<|>))
+import Text.Parsec.String (Parser)
 
 skipSpace :: Parser ()
 skipSpace = void $ many space
 
 checkSingle :: String -> Parser Bool
-checkSingle str = lookAhead (string str >> return True) <|> return False
+checkSingle str = lookAhead (try $ string str >> return True) <|> return False
 
 checkMulti :: [String] -> Parser Bool
 checkMulti = anyM checkSingle
 
 checkChar :: Char -> Parser Bool
-checkChar x = lookAhead (char x >> return True) <|> return False
+checkChar x = lookAhead (try $ char x >> return True) <|> return False
 
 skipComment :: Parser ()
 skipComment = do
   void $ string "--"
   try multiLineComment <|> void (manyTill anyChar (char '\n'))
 
-multiLineComment :: Parser()
+multiLineComment :: Parser ()
 multiLineComment = do
   void $ char '['
   levelStr <- many $ char '='
   void $ char '['
   void $ manyTill anyChar (string $ "]" ++ levelStr ++ "]")
-
 
 skipComments :: Parser ()
 skipComments = void $ many skipComment
@@ -40,3 +40,5 @@ skipJunk = do
   after <- getInput
   when (before /= after) skipJunk
 
+reservedKW :: [String]
+reservedKW = ["and", "break", "do", "else", "elseif", "end", "false", "for", "function", "goto", "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until", "while"]
