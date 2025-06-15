@@ -238,8 +238,8 @@ subEx = do
   void $ char ')'
   return expr
 
-varEx :: Parser Expr
-varEx = do
+namedVar :: Parser Expr
+namedVar = do
   first <- try $ letter <|> char '_'
   rest <- many (alphaNum <|> char '_')
   let full = first : rest
@@ -248,4 +248,4 @@ varEx = do
     else return $ VarExpr full
 
 prefixEx :: Parser Expr
-prefixEx = try subEx <|> varEx
+prefixEx = try subEx <|> namedVar
