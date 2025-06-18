@@ -5,11 +5,11 @@ import Control.Monad (void)
 import Parser.Nums
 import Parser.Op
 import Parser.Parser
-import Text.Parsec (alphaNum, anyChar, char, getInput, letter, many, manyTill, oneOf, satisfy, string, try, (<|>))
+import Text.Parsec (alphaNum, anyChar, char, getInput, letter, lookAhead, many, manyTill, oneOf, satisfy, string, try, (<|>))
 import Text.Parsec.String (Parser)
 
 validNext :: [String]
-validNext = [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n", ")"]
+validNext = [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n", ")", "}", ",", "]"]
 
 num :: Parser Expr
 num = do
@@ -217,7 +217,7 @@ ex11 = do
 ex12 :: Parser Expr
 ex12 = do
   skipJunk
-  l <- try literalExpr <|> prefixEx
+  l <- try (tableEx <|> literalExpr) <|> prefixEx
   ex12' l
 
 ex12' :: Expr -> Parser Expr
@@ -238,14 +238,83 @@ subEx = do
   void $ char ')'
   return expr
 
-namedVar :: Parser Expr
-namedVar = do
+name :: Parser String
+name = do
+  skipJunk
   first <- try $ letter <|> char '_'
   rest <- many (alphaNum <|> char '_')
   let full = first : rest
   if full `elem` reservedKW
     then fail $ "Cannot use reserved keyword \"" ++ full ++ "\""
-    else return $ VarExpr full
+    else return full
+
+namedVar :: Parser Expr
+namedVar = VarExpr <$> name
 
 prefixEx :: Parser Expr
 prefixEx = try subEx <|> namedVar
+
+exField :: Parser Field
+exField = do
+  skipJunk
+  void $ char '['
+  lhs <- ex1
+  skipJunk
+  void $ char ']'
+  skipJunk
+  void $ char '='
+  ExField lhs <$> ex1
+
+namedField :: Parser Field
+namedField = do
+  lhs <- name
+  skipJunk
+  void $ char '='
+  NamedField lhs <$> ex1
+
+singleExField :: Parser Field
+singleExField = SingleExField <$> ex1
+
+checkField :: Parser Bool
+checkField = lookAhead (try $ field >> return True) <|> return False
+
+field :: Parser Field
+field = exField <|> namedField <|> singleExField
+
+fieldList :: Parser [Field]
+fieldList = do
+  skipJunk
+  isField <- checkField
+  if not isField
+    then
+      return []
+    else do
+      skipJunk
+      lhs <- field
+      isComma <- checkChar ','
+      if isComma
+        then do
+          void $ char ','
+          rhs <- fieldList
+          return $ lhs : rhs
+        else do
+          return [lhs]
+
+tableConstructor :: Parser TableConstructor
+tableConstructor = do
+  skipJunk
+  void $ char '{'
+  fields <- fieldList
+  skipJunk
+  void $ char '}'
+  return $ TableConstructor fields
+
+tableEx :: Parser Expr
+tableEx = TableExpr <$> tableConstructor
+
+exList :: Parser ExprList
+exList = do
+  skipJunk
+  start <- ex1
+  end <- many (skipJunk >> char ',' >> skipJunk >> ex1)
+  return $ ExprList $ start : end

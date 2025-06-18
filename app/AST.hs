@@ -51,7 +51,28 @@ instance Show Literal where
   show (NumLit x) = show x
   show (StringLit x) = show x
 
-data Expr = BinExpr Expr BIN_OP Expr | UnaryExpr U_OP Expr | LiteralExpr Literal | VarExpr String | NIL | TRUE | FALSE | TRIPLE_DOT
+data Field = ExField Expr Expr | NamedField String Expr | SingleExField Expr
+  deriving (Eq)
+
+instance Show Field where
+  show (ExField x y) = "[" ++ show x ++ "] = " ++ show y
+  show (NamedField x y) = x ++ " = " ++ show y
+  show (SingleExField x) = show x
+
+data TableConstructor where
+  TableConstructor :: [Field] -> TableConstructor
+  deriving (Eq)
+
+showFieldList :: [Field] -> String
+showFieldList [] = ""
+showFieldList (x:xs) = show x ++ case showFieldList xs of
+  "" -> ""
+  y -> ", " ++ y
+
+instance Show TableConstructor where
+  show (TableConstructor fields) = "{" ++ showFieldList fields ++ "}"
+
+data Expr = BinExpr Expr BIN_OP Expr | UnaryExpr U_OP Expr | LiteralExpr Literal | VarExpr String | NIL | TRUE | FALSE | TRIPLE_DOT | TableExpr TableConstructor
   deriving (Eq)
 
 instance Show Expr where
@@ -63,6 +84,19 @@ instance Show Expr where
   show TRUE = "true"
   show FALSE = "false"
   show TRIPLE_DOT = "..."
+  show (TableExpr x) = show x
+
+data ExprList where
+  ExprList :: [Expr] -> ExprList
+
+showExprList :: ExprList -> String
+showExprList (ExprList []) = ""
+showExprList (ExprList (x:xs)) = show x ++ case showExprList (ExprList xs) of
+  "" -> ""
+  y -> ", " ++ y
+
+instance Show ExprList where
+  show = showExprList
 
 {-
 data Assign = Assign {asgnL :: NamedVar, asgnR :: Ex1}
