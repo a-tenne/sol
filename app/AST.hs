@@ -1,6 +1,7 @@
 module AST where
 
 import Prelude hiding (EQ, GT, LT)
+import Data.Int (Int64)
 
 data BIN_OP = OR | AND | LE | GE | LT | GT | NE | EQ | B_OR | B_XOR | B_AND | LSHIFT | RSHIFT | CONCAT | PLUS | MINUS | MULT | DIV | INT_DIV | MOD | EXP
   deriving (Eq)
@@ -37,7 +38,7 @@ instance Show U_OP where
   show U_LEN = "#"
   show U_B_NOT = "~"
 
-data Numeric = NumInt Integer | NumDouble Double
+data Numeric = NumInt Int64 | NumDouble Double
   deriving (Eq)
 
 instance Show Numeric where

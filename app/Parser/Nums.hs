@@ -3,14 +3,15 @@ module Parser.Nums where
 import AST
 import Control.Monad (void)
 import Data.Char (toLower)
+import Data.Int (Int64)
 import Text.Parsec (char, digit, hexDigit, many, many1, oneOf, optionMaybe, try, (<|>))
 import Text.Parsec.String (Parser)
 
-hexInt :: Parser Integer
+hexInt :: Parser Int64
 hexInt = do
   void $ char '0' >> try (char 'x' <|> char 'X')
-  digits <- map (toInteger . hexToInt) <$> many1 hexDigit
-  let hexVals = zipWith (*) [16 ^ x | x <- [0..(length digits - 1)]] (reverse digits)
+  digits <- map hexToInt <$> many1 hexDigit
+  let hexVals = zipWith (*) [16 ^ x | x <- [0 .. (length digits - 1)]] (reverse digits)
   return $ sum hexVals
 
 numInt :: Parser Numeric
@@ -32,16 +33,16 @@ hexDoubleExp = do
       return (True, ((2.0 ** sign pNum) *))
     Nothing -> return (False, ((2.0 ** 0.0) *))
 
-hexToIntTable :: [(Char, Int)]
+hexToIntTable :: [(Char, Int64)]
 hexToIntTable = zip ['0' .. '9'] [0 .. 9] ++ zip ['a' .. 'f'] [10 .. 15]
 
-hexToIntHelper :: [(Char, Int)] -> Char -> Int
+hexToIntHelper :: [(Char, Int64)] -> Char -> Int64
 hexToIntHelper [] x = error $ "Internal error: Invalid hex digit -> " ++ show x
 hexToIntHelper ((x, y) : xs) z
   | x == toLower z = y
   | otherwise = hexToIntHelper xs z
 
-hexToInt :: Char -> Int
+hexToInt :: Char -> Int64
 hexToInt = hexToIntHelper hexToIntTable
 
 hexDouble :: Parser Numeric
@@ -58,7 +59,7 @@ hexDouble = do
       return $ NumDouble $ expFn afterPrecision
     Nothing -> do
       (pConsumed, expFn) <- hexDoubleExp
-      if pConsumed then return $ NumDouble $ expFn start else return $ NumInt $ floor start
+      if pConsumed then return $ NumDouble $ expFn start else return $ NumInt integerPart
 
 numDoubleExp :: Parser String
 numDoubleExp = do
