@@ -65,8 +65,8 @@ executable sol
     other-modules:
       AST
       Parser.Op
+      Parser.Helpers
       Parser.Parser
-      Parser.Expr
       Parser.Nums
 
     -- LANGUAGE extensions used by modules in this package.

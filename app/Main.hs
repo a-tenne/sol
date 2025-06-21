@@ -4,6 +4,9 @@ import System.Environment
 import System.IO (hPutStrLn, stderr)
 import System.Exit (exitFailure)
 
+import Parser.Parser(program)
+import Text.Parsec (parse)
+
 main :: IO ()
 main = do
   argv <- getArgs
@@ -13,9 +16,9 @@ main = do
       exitFailure
     else do
       let fileName = last argv
-      _file <- readFile fileName
-      {- case parse  "Syntax error" file of
+      file <- readFile fileName
+      case parse program  "Syntax error" file of
         Left err -> print err
         Right expr -> print expr
-      -}
+      
       return ()

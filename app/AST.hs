@@ -1,7 +1,7 @@
 module AST where
 
-import Prelude hiding (EQ, GT, LT)
 import Data.Int (Int64)
+import Prelude hiding (EQ, GT, LT)
 
 data BIN_OP = OR | AND | LE | GE | LT | GT | NE | EQ | B_OR | B_XOR | B_AND | LSHIFT | RSHIFT | CONCAT | PLUS | MINUS | MULT | DIV | INT_DIV | MOD | EXP
   deriving (Eq)
@@ -66,46 +66,167 @@ data TableConstructor where
 
 showFieldList :: [Field] -> String
 showFieldList [] = ""
-showFieldList (x:xs) = show x ++ case showFieldList xs of
-  "" -> ""
-  y -> ", " ++ y
+showFieldList (x : xs) =
+  show x ++ case showFieldList xs of
+    "" -> ""
+    y -> ", " ++ y
 
 instance Show TableConstructor where
   show (TableConstructor fields) = "{" ++ showFieldList fields ++ "}"
 
-data Expr = BinExpr Expr BIN_OP Expr | UnaryExpr U_OP Expr | LiteralExpr Literal | VarExpr String | NIL | TRUE | FALSE | TRIPLE_DOT | TableExpr TableConstructor
+type Name = String
+
+data Args = ArgList ExprList | ArgTable TableConstructor | ArgString Expr
+  deriving (Eq)
+
+instance Show Args where
+  show(ArgList x) = "(" ++ show x ++ ")"
+  show(ArgTable x) = show x
+  show(ArgString x) = show x
+
+data FuncCall where
+  FuncCall :: PrefixExpr -> FuncCall
+  deriving (Eq)
+
+instance Show FuncCall where
+  show (FuncCall x) = show x
+
+data PrefixExpr = PrefixName Name PrefixExpr' | PrefixSub Expr PrefixExpr'
+  deriving (Eq)
+
+instance Show PrefixExpr where
+  show(PrefixName x y) = x ++ show y
+  show(PrefixSub x y) = "(" ++ show x ++ ")" ++ show y
+
+data PrefixExpr' = TableIndex Expr PrefixExpr' | DotIndex Name PrefixExpr' | CallArgs Args PrefixExpr' | MethodArgs Name Args PrefixExpr' | PrefixEmpty
+  deriving (Eq)
+
+instance Show PrefixExpr' where
+  show(TableIndex x y) = "[" ++ show x ++ "]" ++ show y
+  show(DotIndex x y) = "." ++ x ++ show y
+  show(MethodArgs x y z) = ":" ++ x ++ show y ++ show z
+  show(CallArgs x y) = show x ++ show y
+  show PrefixEmpty = ""
+
+data Var where
+  Var :: PrefixExpr -> Var
+  deriving (Eq)
+
+instance Show Var where
+  show (Var x) = show x
+  
+data VarList where
+  VarList :: [Var] -> VarList
+  deriving (Eq)
+
+showVarList :: VarList -> String
+showVarList (VarList []) = ""
+showVarList (VarList (x : xs)) =
+  show x ++ case showVarList (VarList xs) of
+    "" -> ""
+    y -> ", " ++ y
+
+instance Show VarList where
+  show = showVarList
+
+data Chunk where
+  Chunk :: Block -> Chunk
+  deriving(Eq)
+
+instance Show Chunk where
+  show (Chunk x) = show x
+
+
+data Block = Block StatList (Maybe RetStat)
+  deriving (Eq)
+
+instance Show Block where
+  show (Block l (Just r)) = show l ++ "\n" ++ show r
+  show (Block l Nothing) = show l
+
+data RetStat where
+  RetStat :: ExprList -> RetStat
+  deriving (Eq)
+
+instance Show RetStat where
+  show(RetStat (ExprList x)) = "return" ++ (if null x then "" else " ") ++ show (ExprList x) ++ ";"
+
+data Stat = Semic | Asgn VarList ExprList
+  deriving (Eq)
+
+instance Show Stat where
+  show Semic = ";"
+  show (Asgn l r) = show l ++ " = " ++ show r
+  
+data StatList where
+  StatList :: [Stat] -> StatList
+  deriving (Eq)
+
+showStatList :: StatList -> String
+showStatList (StatList []) = ""
+showStatList (StatList (x : xs)) =
+  show x ++ case showStatList (StatList xs) of
+    "" -> ""
+    y -> "\n" ++ y
+
+instance Show StatList where
+  show = showStatList
+
+data VarArg = VarArg
+  deriving (Eq)
+
+data NameList where
+  NameList :: [Name] -> NameList
+  deriving (Eq)
+
+showNameList :: NameList -> String
+showNameList (NameList []) = ""
+showNameList (NameList (x : xs)) =
+  show x ++ case showNameList (NameList xs) of
+    "" -> ""
+    y -> ", " ++ y
+
+instance Show NameList where
+  show = showNameList
+
+data ParamList = ParamList NameList (Maybe VarArg)
+  deriving (Eq)
+
+instance Show ParamList where
+  show (ParamList x (Just _)) = "(" ++ show x ++ ", ...)\n"
+  show (ParamList x Nothing) = "(" ++ show x ++ ")\n"
+
+data FuncBody = FuncBody ParamList Block
+  deriving (Eq)
+
+instance Show FuncBody where
+  show (FuncBody x y) = "function " ++ show x ++ show y ++ "\nend\n"
+
+data Expr = BinExpr Expr BIN_OP Expr | UnaryExpr U_OP Expr | LiteralExpr Literal | PreExpr PrefixExpr | NIL | TRUE | FALSE | TRIPLE_DOT | TableExpr TableConstructor | FunctionDef FuncBody
   deriving (Eq)
 
 instance Show Expr where
   show (BinExpr l op r) = "(" ++ show l ++ show op ++ show r ++ ")"
   show (UnaryExpr op r) = "(" ++ show op ++ show r ++ ")"
   show (LiteralExpr l) = show l
-  show (VarExpr name) = '$' : name
+  show (PreExpr x) = show x
   show NIL = "nil"
   show TRUE = "true"
   show FALSE = "false"
   show TRIPLE_DOT = "..."
   show (TableExpr x) = show x
+  show (FunctionDef x) = show x
 
 data ExprList where
   ExprList :: [Expr] -> ExprList
+  deriving (Eq)
 
 showExprList :: ExprList -> String
 showExprList (ExprList []) = ""
-showExprList (ExprList (x:xs)) = show x ++ case showExprList (ExprList xs) of
-  "" -> ""
-  y -> ", " ++ y
+showExprList (ExprList (x : xs)) =
+  show x ++ case showExprList (ExprList xs) of
+    "" -> ""
+    y -> ", " ++ y
 
 instance Show ExprList where
   show = showExprList
-
-{-
-data Assign = Assign {asgnL :: NamedVar, asgnR :: Ex1}
-  deriving (Eq)
-
-instance Show Assign where
-  show (Assign l r) = show l ++ " = " ++ show r
-
-data Program = Program {ls :: [Assign]}
-  deriving (Eq, Show)
-  -}
