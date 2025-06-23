@@ -5,20 +5,20 @@ import Control.Monad (void)
 import Parser.Helpers
 import Parser.Nums
 import Parser.Op
-import Text.Parsec (alphaNum, anyChar, char, getInput, letter, lookAhead, many, manyTill, oneOf, optionMaybe, satisfy, string, try, (<|>))
+import Text.Parsec (alphaNum, anyChar, char, eof, getInput, letter, lookAhead, many, manyTill, oneOf, optionMaybe, satisfy, string, try, (<|>))
 import Text.Parsec.String (Parser)
 
 validNext :: [String]
-validNext = [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n", ")", "}", ",", "]", ";"]
+validNext = [" ", "<=", ">=", "<", ">", "~=", "==", "|", "~", "&", "<<", ">>", "+", "-", "*", "/", "//", "%", "^", "\n", ")", "}", ",", "]", ";", ".."]
 
 num :: Parser Expr
 num = do
   n <- try numDouble <|> numInt
-  check <- checkMulti validNext
-  if not check
+  input <- getInput
+  if not (null input)
     then do
-      input <- getInput
-      if null input
+      check <- checkMulti validNext
+      if check
         then
           return $ LiteralExpr (NumLit n)
         else fail "Malformed number"
@@ -33,7 +33,7 @@ singleLineStr = do
 multiLineStr :: Parser Expr
 multiLineStr =
   char '[' >> do
-    levelStr <- many $ char '='
+    levelStr <- many $ try $ char '='
     void $ char '['
     str <- manyTill anyChar (string $ "]" ++ levelStr ++ "]")
     return $ LiteralExpr (StringLit str)
@@ -129,7 +129,8 @@ ex5' :: Expr -> Parser Expr
 ex5' l = do
   skipJunk
   check <- checkSingle "~"
-  if not check
+  check2 <- checkSingle "~="
+  if not check || check2
     then return l
     else do
       op <- oper5
@@ -217,7 +218,7 @@ ex11 = do
 ex12 :: Parser Expr
 ex12 = do
   skipJunk
-  l <- try tableEx <|> try  functionDef <|> try  literalExpr <|> try  preEx
+  l <- try preEx <|> try tableEx <|> try functionDef <|> try literalExpr
   ex12' l
 
 ex12' :: Expr -> Parser Expr
@@ -244,7 +245,7 @@ name :: Parser Name
 name = do
   skipJunk
   first <- try letter <|> try (char '_')
-  rest <- many (alphaNum <|> char '_')
+  rest <- many $ try (alphaNum <|> char '_')
   let full = first : rest
   if full `elem` reservedKW
     then fail $ "Cannot use reserved keyword \"" ++ full ++ "\""
@@ -252,6 +253,12 @@ name = do
 
 checkName :: Parser Bool
 checkName = lookAhead (try $ name >> return True) <|> return False
+
+keyword :: String -> Parser ()
+keyword kw = do
+  skipJunk
+  isName <- checkName
+  if isName then fail "" else void $ string kw
 
 preEx :: Parser Expr
 preEx = PreExpr <$> prefixEx
@@ -263,10 +270,32 @@ prefixEx = do
   if checkBrace
     then do
       lhs <- subEx
+      skipJunk
       PrefixSub lhs <$> prefixEx'
     else do
       lhs <- name
+      skipJunk
       PrefixName lhs <$> prefixEx'
+
+prefixEx' :: Parser PrefixExpr'
+prefixEx' = do
+  input <- getInput
+  if null input
+    then
+      return PrefixEmpty
+    else do
+      skipJunk
+      nextChar <- peekChar
+      isConcat <- checkSingle ".."
+      if isConcat
+        then return PrefixEmpty
+        else case nextChar of
+          '[' -> tableIndex <|> callArgs
+          '.' -> dotIndex
+          '(' -> callArgs
+          '{' -> callArgs
+          ':' -> methodArgs
+          _ -> return PrefixEmpty
 
 tableIndex :: Parser PrefixExpr'
 tableIndex = do
@@ -288,9 +317,11 @@ argList :: Parser Args
 argList = do
   skipJunk
   void $ char '('
+  skipJunk
   checkEmpty <- checkChar ')'
   if checkEmpty
-    then
+    then do
+      void $ char ')'
       return $ ArgList $ ExprList []
     else do
       l <- exList
@@ -322,23 +353,6 @@ methodArgs = do
   n <- name
   a <- args
   MethodArgs n a <$> prefixEx'
-
-prefixEx' :: Parser PrefixExpr'
-prefixEx' = do
-  input <- getInput
-  if null input
-    then
-      return PrefixEmpty
-    else do
-      skipJunk
-      nextChar <- peekChar
-      case nextChar of
-        '[' -> tableIndex <|> callArgs
-        '.' -> dotIndex
-        '(' -> callArgs
-        '{' -> callArgs
-        ':' -> methodArgs
-        _ -> return PrefixEmpty
 
 exField :: Parser Field
 exField = do
@@ -403,14 +417,14 @@ exList :: Parser ExprList
 exList = do
   skipJunk
   start <- ex1
-  end <- many (skipJunk >> char ',' >> skipJunk >> ex1)
+  end <- many $ try (skipJunk >> char ',' >> skipJunk >> ex1)
   return $ ExprList $ start : end
 
 varList :: Parser VarList
 varList = do
   skipJunk
   start <- var
-  end <- many (skipJunk >> char ',' >> skipJunk >> var)
+  end <- many $ try (skipJunk >> char ',' >> skipJunk >> var)
   return $ VarList $ start : end
 
 isVarHelper :: PrefixExpr' -> Bool
@@ -457,54 +471,42 @@ nameList :: Parser NameList
 nameList = do
   skipJunk
   start <- name
-  end <- many (skipJunk >> char ',' >> skipJunk >> name)
+  end <- many $ try (skipJunk >> char ',' >> skipJunk >> name)
   return $ NameList $ start : end
 
 paramList :: Parser ParamList
 paramList = do
-  skipJunk
-  void $ char '('
-  check1 <- checkSingle "..."
+  void $ skipJunk >> char '('
+  check1 <- skipJunk >> checkSingle "..."
   if check1
     then do
-      void $ string "..."
-      skipJunk
-      void $ char ')'
+      void $ string "..." >> skipJunk >> char ')'
       return $ ParamList (NameList []) $ Just VarArg
     else do
-      nameMaybe <- optionMaybe nameList
+      nameMaybe <- optionMaybe $ try nameList
       let namedParams = case nameMaybe of
             Just names -> names
             Nothing -> NameList []
-      skipJunk
-      check2 <- checkChar ','
+      check2 <- skipJunk >> checkChar ','
       if check2
         then do
-          void $ char ','
-          skipJunk
-          void $ string "..."
-          skipJunk
-          void $ char ')'
+          void $ char ',' >> skipJunk >> string "..." >> skipJunk >> char ')'
           return $ ParamList namedParams $ Just VarArg
         else do
           void $ char ')'
           return $ ParamList namedParams Nothing
 
+funcBody :: Parser FuncBody
+funcBody = do
+  params <- skipJunk >> paramList
+  body <- skipJunk >> block
+  skipJunk >> keyword "end"
+  return $ FuncBody params body
+
 functionDef :: Parser Expr
 functionDef = do
-  skipJunk
-  isName <- checkName
-  if isName
-    then fail ""
-    else do
-      void $ string "function"
-      skipJunk
-      params <- paramList
-      skipJunk
-      body <- block
-      skipJunk
-      void $ string "end"
-      return $ FunctionDef $ FuncBody params body
+  skipJunk >> keyword "function"
+  FunctionDef <$> (skipJunk >> funcBody)
 
 asgn :: Parser Stat
 asgn = do
@@ -520,127 +522,186 @@ semic = skipJunk >> char ';' >> return Semic
 
 labelStat :: Parser Stat
 labelStat = do
-  skipJunk
-  void $ string "::"
-  x <- name
-  void $ string "::"
+  x <- skipJunk >> string "::" >> skipJunk >> name
+  void $ skipJunk >> string "::"
   return $ Label x
 
 breakStat :: Parser Stat
-breakStat = do
-  skipJunk
-  isName <- checkName
-  if isName then fail "" else string "break" >> return Break
+breakStat = skipJunk >> keyword "break" >> return Break
 
 goto :: Parser Stat
-goto = do
-  skipJunk
-  isName <- checkName
-  if isName then fail "" else string "goto" >> skipJunk >> Goto <$> name
+goto = skipJunk >> keyword "goto" >> skipJunk >> Goto <$> name
 
 doStat :: Parser Stat
 doStat = do
-  skipJunk
-  isName1 <- checkName
-  if isName1
-    then fail ""
-    else do
-      void $ string "do"
-      skipJunk
-      b <- block
-      skipJunk
-      isName2 <- checkName
-      if isName2
-        then fail ""
-        else do
-          void $ string "end"
-          return $ Do b
+  skipJunk >> keyword "do"
+  b <- skipJunk >> block
+  skipJunk >> keyword "end"
+  return $ Do b
 
 whileDo :: Parser Stat
 whileDo = do
-  skipJunk
-  isName <- checkName
-  if isName
-    then fail ""
-    else do
-      void $ string "while"
-      skipJunk
-      ex <- ex1
-      skipJunk
-      (Do b) <- doStat
-      return $ WhileDo ex b
+  skipJunk >> keyword "while"
+  ex <- skipJunk >> ex1
+  (Do b) <- skipJunk >> doStat
+  return $ WhileDo ex b
 
 repeatUntil :: Parser Stat
 repeatUntil = do
-  skipJunk
-  isName1 <- checkName
-  if isName1
-    then fail ""
-    else do
-      void $ string "repeat"
-      skipJunk
-      b <- block
-      skipJunk
-      isName2 <- checkName
-      if isName2
-        then fail ""
-        else do
-          void $ string "until"
-          skipJunk
-          RepeatUntil b <$> ex1
-
+  skipJunk >> keyword "repeat"
+  b <- skipJunk >> block
+  skipJunk >> keyword "until"
+  RepeatUntil b <$> (skipJunk >> ex1)
 
 funcCallStat :: Parser Stat
 funcCallStat = skipJunk >> FuncCallStat <$> funcCall
 
+elseIf :: Parser ElseIf
+elseIf = do
+  skipJunk >> keyword "elseif"
+  ex <- skipJunk >> ex1
+  skipJunk >> keyword "then"
+  ElseIf ex <$> (skipJunk >> block)
+
+elseIfList :: Parser ElseIfList
+elseIfList = ElseIfList <$> many (try elseIf)
+
+elseStat :: Parser Else
+elseStat = do
+  skipJunk >> keyword "else"
+  Else <$> (skipJunk >> block)
+
+ifStat :: Parser Stat
+ifStat = do
+  skipJunk >> keyword "if"
+  ex <- skipJunk >> ex1
+  skipJunk >> keyword "then"
+  b <- skipJunk >> block
+  elif <- skipJunk >> elseIfList
+  el <- optionMaybe $ skipJunk >> try elseStat
+  skipJunk >> keyword "end"
+  return $ IfStat ex b elif el
+
+forStat :: Parser Stat
+forStat = do
+  skipJunk >> keyword "for"
+  n <- skipJunk >> name
+  void $ skipJunk >> char '='
+  e1 <- skipJunk >> ex1
+  void $ skipJunk >> char ','
+  e2 <- skipJunk >> ex1
+  e3 <- optionMaybe $ skipJunk >> try (char ',' >> skipJunk >> ex1)
+  (Do b) <- skipJunk >> doStat
+  return $ ForStat n e1 e2 e3 b
+
+forIn :: Parser Stat
+forIn = do
+  skipJunk
+  keyword "for"
+  skipJunk
+  nl <- nameList
+  skipJunk
+  keyword "in"
+  skipJunk
+  elist <- exList
+  skipJunk
+  (Do b) <- doStat
+  return $ ForIn nl elist b
+
+funcName :: Parser FuncName
+funcName = do
+  skipJunk
+  n1 <- name
+  nl <- many $ try (char '.' >> skipJunk >> name)
+  n2 <- optionMaybe $ try (char ':' >> skipJunk >> name)
+  return $ FuncName n1 nl n2
+
+funcDefStat :: Parser Stat
+funcDefStat = do
+  skipJunk
+  keyword "function"
+  skipJunk
+  n <- funcName
+  skipJunk
+  FuncDefStat n <$> funcBody
+
+localFuncStat :: Parser Stat
+localFuncStat = do
+  skipJunk
+  keyword "local"
+  skipJunk
+  keyword "function"
+  skipJunk
+  n <- name
+  skipJunk
+  LocalFuncStat n <$> funcBody
+
+attrib :: Parser Attrib
+attrib = do
+  n <- skipJunk >> char '<' >> skipJunk >> name
+  void $ char '>'
+  return $ Attrib n
+
+attrName :: Parser (Name, Maybe Attrib)
+attrName = do
+  skipJunk
+  n <- name
+  skipJunk
+  a <- optionMaybe $ try attrib
+  return (n, a)
+
+attrNameList :: Parser AttrNameList
+attrNameList = do
+  skipJunk
+  start <- attrName
+  skipJunk
+  end <- many $ try $ skipJunk >> char ',' >> attrName
+  return $ AttrNameList $ start : end
+
+localAsgn :: Parser Stat
+localAsgn = do
+  skipJunk
+  keyword "local"
+  skipJunk
+  anl <- attrNameList
+  skipJunk
+  el <- optionMaybe $ try $ char '=' >> skipJunk >> exList
+  return $ LocalAsgn anl el
+
 stat :: Parser Stat
-stat = try asgn <|> try semic <|> try funcCallStat <|> try labelStat <|> try breakStat <|> try goto <|> try doStat <|> try whileDo <|> try repeatUntil
+stat = skipJunk >> (try funcCallStat <|> try asgn <|> try semic <|> try labelStat <|> try breakStat <|> try goto <|> try doStat <|> try whileDo <|> try repeatUntil <|> try ifStat <|> try forStat <|> try forIn <|> try funcDefStat <|> try localFuncStat <|> try localAsgn)
 
 statList :: Parser StatList
-statList = StatList <$> many stat
+statList = do
+  skipJunk
+  sl <- many (try stat)
+  skipJunk
+  return $ StatList sl
 
 retStat :: Parser RetStat
 retStat = do
   skipJunk
-  isName <- checkName
-  if isName
-    then fail ""
+  try $ keyword "return"
+  check <- skipJunk >> checkChar ';'
+  if check
+    then do
+      void $ char ';'
+      return $ RetStat $ ExprList []
     else do
-      void $ string "return"
-      skipJunk
-      check <- checkChar ';'
-      if check
-        then do
-          void $ char ';'
-          return $ RetStat $ ExprList []
-        else do
-          ret <- exList
-          void $ optionMaybe $ char ';'
-          return $ RetStat ret
+      check2 <- lookAhead (try ex1 >> return True) <|> return False
+      ret <- if check2 then exList else return $ ExprList []
+      void $ optionMaybe $ try $ char ';'
+      return $ RetStat ret
 
 block :: Parser Block
 block = do
   skipJunk
-  retStart <- optionMaybe retStat
-  case retStart of
-    Just _ -> do
-      skipJunk
-      input <- getInput
-      if null input
-        then do
-          return $ Block (StatList []) retStart
-        else fail ""
-    Nothing -> do
-      stats <- statList
-      ret <- optionMaybe retStat
-      return $ Block stats ret
+  stats <- statList
+  ret <- optionMaybe $ try retStat
+  return $ Block stats ret
 
 chunk :: Parser Chunk
 chunk = Chunk <$> block
 
-program :: Parser Chunk
-program = do
-  prog <- chunk
-  skipJunk
-  input <- getInput
-  if null input then return prog else fail "expected <EOF>"
+program :: Parser AST
+program = AST <$> chunk <* eof

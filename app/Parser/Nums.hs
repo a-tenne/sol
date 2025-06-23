@@ -9,7 +9,7 @@ import Text.Parsec.String (Parser)
 
 hexInt :: Parser Int64
 hexInt = do
-  void $ char '0' >> try (char 'x' <|> char 'X')
+  void $ try $ char '0' >> (try (char 'x') <|> try (char 'X'))
   digits <- map hexToInt <$> many1 hexDigit
   let hexVals = zipWith (*) [16 ^ x | x <- [0 .. (length digits - 1)]] (reverse digits)
   return $ sum hexVals

@@ -2,7 +2,7 @@ module Parser.Helpers where
 
 import Control.Monad (void, when)
 import Control.Monad.Extra (anyM)
-import Text.Parsec (anyChar, char, getInput, lookAhead, many, manyTill, space, string, try, (<|>), Parsec)
+import Text.Parsec (Parsec, anyChar, char, getInput, lookAhead, many, manyTill, space, string, try, (<|>))
 import Text.Parsec.String (Parser)
 
 skipSpace :: Parser ()
@@ -38,7 +38,7 @@ skipComments = void $ many skipComment
 skipJunk :: Parser ()
 skipJunk = do
   before <- getInput
-  skipSpace
+  try skipSpace
   try skipComments <|> return ()
   after <- getInput
   when (before /= after) skipJunk

@@ -1,6 +1,7 @@
 module AST where
 
 import Data.Int (Int64)
+import Data.List (intercalate)
 import Prelude hiding (EQ, GT, LT)
 
 data BIN_OP = OR | AND | LE | GE | LT | GT | NE | EQ | B_OR | B_XOR | B_AND | LSHIFT | RSHIFT | CONCAT | PLUS | MINUS | MULT | DIV | INT_DIV | MOD | EXP
@@ -64,15 +65,8 @@ data TableConstructor where
   TableConstructor :: [Field] -> TableConstructor
   deriving (Eq)
 
-showFieldList :: [Field] -> String
-showFieldList [] = ""
-showFieldList (x : xs) =
-  show x ++ case showFieldList xs of
-    "" -> ""
-    y -> ", " ++ y
-
 instance Show TableConstructor where
-  show (TableConstructor fields) = "{" ++ showFieldList fields ++ "}"
+  show (TableConstructor fields) = "{" ++ intercalate ", " (map show fields) ++ "}"
 
 type Name = String
 
@@ -80,9 +74,9 @@ data Args = ArgList ExprList | ArgTable TableConstructor | ArgString Expr
   deriving (Eq)
 
 instance Show Args where
-  show(ArgList x) = "(" ++ show x ++ ")"
-  show(ArgTable x) = show x
-  show(ArgString x) = show x
+  show (ArgList x) = "(" ++ show x ++ ")"
+  show (ArgTable x) = show x
+  show (ArgString x) = show x
 
 data FuncCall where
   FuncCall :: PrefixExpr -> FuncCall
@@ -95,17 +89,17 @@ data PrefixExpr = PrefixName Name PrefixExpr' | PrefixSub Expr PrefixExpr'
   deriving (Eq)
 
 instance Show PrefixExpr where
-  show(PrefixName x y) = x ++ show y
-  show(PrefixSub x y) = "(" ++ show x ++ ")" ++ show y
+  show (PrefixName x y) = x ++ show y
+  show (PrefixSub x y) = "(" ++ show x ++ ")" ++ show y
 
 data PrefixExpr' = TableIndex Expr PrefixExpr' | DotIndex Name PrefixExpr' | CallArgs Args PrefixExpr' | MethodArgs Name Args PrefixExpr' | PrefixEmpty
   deriving (Eq)
 
 instance Show PrefixExpr' where
-  show(TableIndex x y) = "[" ++ show x ++ "]" ++ show y
-  show(DotIndex x y) = "." ++ x ++ show y
-  show(MethodArgs x y z) = ":" ++ x ++ show y ++ show z
-  show(CallArgs x y) = show x ++ show y
+  show (TableIndex x y) = "[" ++ show x ++ "]" ++ show y
+  show (DotIndex x y) = "." ++ x ++ show y
+  show (MethodArgs x y z) = ":" ++ x ++ show y ++ show z
+  show (CallArgs x y) = show x ++ show y
   show PrefixEmpty = ""
 
 data Var where
@@ -114,34 +108,26 @@ data Var where
 
 instance Show Var where
   show (Var x) = show x
-  
+
 data VarList where
   VarList :: [Var] -> VarList
   deriving (Eq)
 
-showVarList :: VarList -> String
-showVarList (VarList []) = ""
-showVarList (VarList (x : xs)) =
-  show x ++ case showVarList (VarList xs) of
-    "" -> ""
-    y -> ", " ++ y
-
 instance Show VarList where
-  show = showVarList
+  show (VarList x) = intercalate ", " (map show x)
 
 data Chunk where
   Chunk :: Block -> Chunk
-  deriving(Eq)
+  deriving (Eq)
 
 instance Show Chunk where
   show (Chunk x) = show x
-
 
 data Block = Block StatList (Maybe RetStat)
   deriving (Eq)
 
 instance Show Block where
-  show (Block l (Just r)) = show l ++ "\n" ++ show r
+  show (Block l (Just r)) = (let stats = show l in if stats == "" then "" else stats ++ "\n") ++ show r
   show (Block l Nothing) = show l
 
 data RetStat where
@@ -149,9 +135,50 @@ data RetStat where
   deriving (Eq)
 
 instance Show RetStat where
-  show(RetStat (ExprList x)) = "return" ++ (if null x then "" else " ") ++ show (ExprList x)
+  show (RetStat (ExprList x)) = "return" ++ (if null x then "" else " ") ++ show (ExprList x)
 
-data Stat = Semic | Asgn VarList ExprList | Label Name | Break | Goto Name | Do Block | WhileDo Expr Block | RepeatUntil Block Expr | FuncCallStat FuncCall
+data ElseIf = ElseIf Expr Block
+  deriving (Eq)
+
+instance Show ElseIf where
+  show (ElseIf x y) = "elseif " ++ show x ++ " then\n" ++ show y
+
+data ElseIfList where
+  ElseIfList :: [ElseIf] -> ElseIfList
+  deriving (Eq)
+
+instance Show ElseIfList where
+  show (ElseIfList x) = intercalate "\n" (map show x)
+
+data Else where
+  Else :: Block -> Else
+  deriving (Eq)
+
+instance Show Else where
+  show (Else x) = "else\n" ++ show x
+
+data FuncName = FuncName Name [Name] (Maybe Name)
+  deriving (Eq)
+
+instance Show FuncName where
+  show (FuncName n1 nl (Just n2)) = n1 ++ concatMap ("." ++) nl ++ ':' : n2
+  show (FuncName n1 nl Nothing) = n1 ++ concatMap ("." ++) nl
+
+data Attrib where
+  Attrib :: Name -> Attrib
+  deriving (Eq)
+
+instance Show Attrib where
+  show (Attrib n) = "<" ++ n ++ ">"
+
+data AttrNameList where
+  AttrNameList :: [(Name, Maybe Attrib)] -> AttrNameList
+  deriving (Eq)
+
+instance Show AttrNameList where
+  show (AttrNameList x) = intercalate ", " $ map (\(a, b) -> a ++ maybe "" show b) x
+
+data Stat = Semic | Asgn VarList ExprList | Label Name | Break | Goto Name | Do Block | WhileDo Expr Block | RepeatUntil Block Expr | FuncCallStat FuncCall | IfStat Expr Block ElseIfList (Maybe Else) | ForStat Name Expr Expr (Maybe Expr) Block | ForIn NameList ExprList Block | FuncDefStat FuncName FuncBody | LocalFuncStat Name FuncBody | LocalAsgn AttrNameList (Maybe ExprList)
   deriving (Eq)
 
 instance Show Stat where
@@ -164,20 +191,22 @@ instance Show Stat where
   show (WhileDo x y) = "while " ++ show x ++ " do\n" ++ show y ++ "\nend"
   show (RepeatUntil x y) = "repeat\n" ++ show x ++ "\nuntil " ++ show y
   show (FuncCallStat x) = show x
-  
+  show (IfStat ex b (ElseIfList elif) (Just el)) = "if " ++ show ex ++ " then\n" ++ show b ++ (if null elif then "" else "\n") ++ show (ElseIfList elif) ++ "\n" ++ show el ++ "\nend"
+  show (IfStat ex b (ElseIfList elif) Nothing) = "if " ++ show ex ++ " then\n" ++ show b ++ (if null elif then "" else "\n") ++ show (ElseIfList elif) ++ "\nend"
+  show (ForStat n e1 e2 (Just e3) b) = "for " ++ n ++ " = " ++ show e1 ++ ", " ++ show e2 ++ ", " ++ show e3 ++ "do\n" ++ show b ++ "\nend"
+  show (ForStat n e1 e2 Nothing b) = "for " ++ n ++ " = " ++ show e1 ++ ", " ++ show e2 ++ "do\n" ++ show b ++ "\nend"
+  show (ForIn nl el b) = "for " ++ show nl ++ " in " ++ show el ++ " do\n" ++ show b ++ "\nend"
+  show (FuncDefStat n b) = "function " ++ show n ++ show b
+  show (LocalFuncStat n b) = "local function " ++ n ++ show b
+  show (LocalAsgn x (Just y)) = "local " ++ show x ++ " = " ++ show y
+  show (LocalAsgn x Nothing) = "local " ++ show x
+
 data StatList where
   StatList :: [Stat] -> StatList
   deriving (Eq)
 
-showStatList :: StatList -> String
-showStatList (StatList []) = ""
-showStatList (StatList (x : xs)) =
-  show x ++ case showStatList (StatList xs) of
-    "" -> ""
-    y -> "\n" ++ y
-
 instance Show StatList where
-  show = showStatList
+  show (StatList x) = intercalate "\n" (map show x)
 
 data VarArg = VarArg
   deriving (Eq)
@@ -186,15 +215,8 @@ data NameList where
   NameList :: [Name] -> NameList
   deriving (Eq)
 
-showNameList :: NameList -> String
-showNameList (NameList []) = ""
-showNameList (NameList (x : xs)) =
-  show x ++ case showNameList (NameList xs) of
-    "" -> ""
-    y -> ", " ++ y
-
 instance Show NameList where
-  show = showNameList
+  show (NameList x) = intercalate ", " x
 
 data ParamList = ParamList NameList (Maybe VarArg)
   deriving (Eq)
@@ -207,7 +229,7 @@ data FuncBody = FuncBody ParamList Block
   deriving (Eq)
 
 instance Show FuncBody where
-  show (FuncBody x y) = "function " ++ show x ++ show y ++ "\nend\n"
+  show (FuncBody x y) = show x ++ show y ++ "\nend"
 
 data Expr = BinExpr Expr BIN_OP Expr | UnaryExpr U_OP Expr | LiteralExpr Literal | PreExpr PrefixExpr | NIL | TRUE | FALSE | TRIPLE_DOT | TableExpr TableConstructor | FunctionDef FuncBody
   deriving (Eq)
@@ -222,18 +244,18 @@ instance Show Expr where
   show FALSE = "false"
   show TRIPLE_DOT = "..."
   show (TableExpr x) = show x
-  show (FunctionDef x) = show x
+  show (FunctionDef x) = "function " ++ show x
 
 data ExprList where
   ExprList :: [Expr] -> ExprList
   deriving (Eq)
 
-showExprList :: ExprList -> String
-showExprList (ExprList []) = ""
-showExprList (ExprList (x : xs)) =
-  show x ++ case showExprList (ExprList xs) of
-    "" -> ""
-    y -> ", " ++ y
-
 instance Show ExprList where
-  show = showExprList
+  show (ExprList x) = intercalate ", " (map show x)
+
+data AST where
+  AST :: Chunk -> AST
+  deriving (Eq)
+
+instance Show AST where
+  show (AST x) = show x
