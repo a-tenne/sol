@@ -2,10 +2,10 @@ module Parser.Parser where
 
 import AST
 import Control.Monad (void)
+import Parser.Helpers
 import Parser.Nums
 import Parser.Op
-import Parser.Helpers
-import Text.Parsec (alphaNum, anyChar, char, getInput, letter, lookAhead, many, manyTill, oneOf, satisfy, string, try, (<|>), optionMaybe)
+import Text.Parsec (alphaNum, anyChar, char, getInput, letter, lookAhead, many, manyTill, oneOf, optionMaybe, satisfy, string, try, (<|>))
 import Text.Parsec.String (Parser)
 
 validNext :: [String]
@@ -64,7 +64,7 @@ nilEx :: Parser Expr
 nilEx = litHelper "nil" NIL
 
 literalExpr :: Parser Expr
-literalExpr = skipJunk >> try (num <|> singleLineStr <|> multiLineStr <|> trueEx <|> falseEx <|> tripleDot <|> nilEx)
+literalExpr = skipJunk >> (try num <|> try singleLineStr <|> try multiLineStr <|> try trueEx <|> try falseEx <|> try tripleDot <|> try nilEx)
 
 ex1 :: Parser Expr
 ex1 = skipJunk >> ex2 >>= ex1'
@@ -217,7 +217,7 @@ ex11 = do
 ex12 :: Parser Expr
 ex12 = do
   skipJunk
-  l <- try (tableEx <|> functionDef <|> literalExpr <|> preEx)
+  l <- try tableEx <|> try  functionDef <|> try  literalExpr <|> try  preEx
   ex12' l
 
 ex12' :: Expr -> Parser Expr
@@ -243,7 +243,7 @@ subEx = do
 name :: Parser Name
 name = do
   skipJunk
-  first <- try $ letter <|> char '_'
+  first <- try letter <|> try (char '_')
   rest <- many (alphaNum <|> char '_')
   let full = first : rest
   if full `elem` reservedKW
@@ -302,12 +302,12 @@ argTable :: Parser Args
 argTable = ArgTable <$> tableConstructor
 
 argString :: Parser Args
-argString = ArgString <$> (try singleLineStr <|> multiLineStr)
+argString = ArgString <$> (try singleLineStr <|> try multiLineStr)
 
 args :: Parser Args
 args = do
   skipJunk
-  try (argList <|> argTable) <|> argString
+  try argList <|> try argTable <|> try argString
 
 callArgs :: Parser PrefixExpr'
 callArgs = do
@@ -366,7 +366,7 @@ checkField :: Parser Bool
 checkField = lookAhead (try $ field >> return True) <|> return False
 
 field :: Parser Field
-field = exField <|> namedField <|> singleExField
+field = try exField <|> try namedField <|> try singleExField
 
 fieldList :: Parser [Field]
 fieldList = do
@@ -465,42 +465,46 @@ paramList = do
   skipJunk
   void $ char '('
   check1 <- checkSingle "..."
-  if check1 then do
-    void $ string "..."
-    skipJunk
-    void $ char ')'
-    return $ ParamList (NameList []) $ Just VarArg
-  else do
-    nameMaybe <- optionMaybe nameList
-    let namedParams = case nameMaybe of
-          Just names -> names
-          Nothing -> NameList []
-    skipJunk
-    check2 <- checkChar ','
-    if check2 then do
-      void $ char ','
-      skipJunk
+  if check1
+    then do
       void $ string "..."
       skipJunk
       void $ char ')'
-      return $ ParamList namedParams $ Just VarArg
+      return $ ParamList (NameList []) $ Just VarArg
     else do
-      void $ char ')'
-      return $ ParamList namedParams Nothing
+      nameMaybe <- optionMaybe nameList
+      let namedParams = case nameMaybe of
+            Just names -> names
+            Nothing -> NameList []
+      skipJunk
+      check2 <- checkChar ','
+      if check2
+        then do
+          void $ char ','
+          skipJunk
+          void $ string "..."
+          skipJunk
+          void $ char ')'
+          return $ ParamList namedParams $ Just VarArg
+        else do
+          void $ char ')'
+          return $ ParamList namedParams Nothing
 
 functionDef :: Parser Expr
 functionDef = do
   skipJunk
   isName <- checkName
-  if isName then fail "" else do
-    void $ string "function"
-    skipJunk
-    params <- paramList
-    skipJunk
-    body <- block
-    skipJunk
-    void $ string "end"
-    return $ FunctionDef $ FuncBody params body
+  if isName
+    then fail ""
+    else do
+      void $ string "function"
+      skipJunk
+      params <- paramList
+      skipJunk
+      body <- block
+      skipJunk
+      void $ string "end"
+      return $ FunctionDef $ FuncBody params body
 
 asgn :: Parser Stat
 asgn = do
@@ -514,8 +518,83 @@ asgn = do
 semic :: Parser Stat
 semic = skipJunk >> char ';' >> return Semic
 
+labelStat :: Parser Stat
+labelStat = do
+  skipJunk
+  void $ string "::"
+  x <- name
+  void $ string "::"
+  return $ Label x
+
+breakStat :: Parser Stat
+breakStat = do
+  skipJunk
+  isName <- checkName
+  if isName then fail "" else string "break" >> return Break
+
+goto :: Parser Stat
+goto = do
+  skipJunk
+  isName <- checkName
+  if isName then fail "" else string "goto" >> skipJunk >> Goto <$> name
+
+doStat :: Parser Stat
+doStat = do
+  skipJunk
+  isName1 <- checkName
+  if isName1
+    then fail ""
+    else do
+      void $ string "do"
+      skipJunk
+      b <- block
+      skipJunk
+      isName2 <- checkName
+      if isName2
+        then fail ""
+        else do
+          void $ string "end"
+          return $ Do b
+
+whileDo :: Parser Stat
+whileDo = do
+  skipJunk
+  isName <- checkName
+  if isName
+    then fail ""
+    else do
+      void $ string "while"
+      skipJunk
+      ex <- ex1
+      skipJunk
+      (Do b) <- doStat
+      return $ WhileDo ex b
+
+repeatUntil :: Parser Stat
+repeatUntil = do
+  skipJunk
+  isName1 <- checkName
+  if isName1
+    then fail ""
+    else do
+      void $ string "repeat"
+      skipJunk
+      b <- block
+      skipJunk
+      isName2 <- checkName
+      if isName2
+        then fail ""
+        else do
+          void $ string "until"
+          skipJunk
+          RepeatUntil b <$> ex1
+
+
+funcCallStat :: Parser Stat
+funcCallStat = skipJunk >> FuncCallStat <$> funcCall
+
 stat :: Parser Stat
-stat = try (asgn <|> semic)
+stat = try asgn <|> try semic <|> try funcCallStat <|> try labelStat <|> try breakStat <|> try goto <|> try doStat <|> try whileDo <|> try repeatUntil
 
 statList :: Parser StatList
 statList = StatList <$> many stat
@@ -538,6 +617,7 @@ retStat = do
           ret <- exList
           void $ optionMaybe $ char ';'
           return $ RetStat ret
+
 block :: Parser Block
 block = do
   skipJunk

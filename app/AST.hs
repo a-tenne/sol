@@ -149,14 +149,21 @@ data RetStat where
   deriving (Eq)
 
 instance Show RetStat where
-  show(RetStat (ExprList x)) = "return" ++ (if null x then "" else " ") ++ show (ExprList x) ++ ";"
+  show(RetStat (ExprList x)) = "return" ++ (if null x then "" else " ") ++ show (ExprList x)
 
-data Stat = Semic | Asgn VarList ExprList
+data Stat = Semic | Asgn VarList ExprList | Label Name | Break | Goto Name | Do Block | WhileDo Expr Block | RepeatUntil Block Expr | FuncCallStat FuncCall
   deriving (Eq)
 
 instance Show Stat where
   show Semic = ";"
   show (Asgn l r) = show l ++ " = " ++ show r
+  show (Label x) = "::" ++ x ++ "::"
+  show Break = "break"
+  show (Goto x) = "goto " ++ x
+  show (Do x) = "do\n" ++ show x ++ "\nend"
+  show (WhileDo x y) = "while " ++ show x ++ " do\n" ++ show y ++ "\nend"
+  show (RepeatUntil x y) = "repeat\n" ++ show x ++ "\nuntil " ++ show y
+  show (FuncCallStat x) = show x
   
 data StatList where
   StatList :: [Stat] -> StatList
