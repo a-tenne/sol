@@ -68,6 +68,8 @@ executable sol
       Parser.Helpers
       Parser.Parser
       Parser.Nums
+      Runtime.Types
+      Runtime.Expr
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -76,7 +78,8 @@ executable sol
     build-depends:    base >= 4.17.2.1 && < 4.19,
                       HUnit,
                       parsec,
-                      extra
+                      extra,
+                      containers
 
     -- Directories containing source files.
     hs-source-dirs:   app
