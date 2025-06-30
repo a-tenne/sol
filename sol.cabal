@@ -79,7 +79,10 @@ executable sol
                       HUnit,
                       parsec,
                       extra,
-                      containers
+                      containers,
+                      text,
+                      text-icu,
+                      floating-bits
 
     -- Directories containing source files.
     hs-source-dirs:   app

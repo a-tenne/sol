@@ -26,5 +26,5 @@ main = do
       ast <- case parse program "Syntax error" (trim file) of
         Left err ->  hPrint stderr err >> exitFailure
         Right ast -> return ast
-
-      print ast
+      -- print ast
+      return ()
