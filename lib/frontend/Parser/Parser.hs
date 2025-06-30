@@ -28,7 +28,11 @@ singleLineStr :: Parser Expr
 singleLineStr = do
   start <- oneOf "\"'"
   str <- manyTill (satisfy (/= '\n')) (char start)
-  return $ LiteralExpr (StringLit str)
+  return $ LiteralExpr (StringLit $ unescape str)
+    where
+      unescape :: String -> String
+      unescape s = read ("\"" ++ s ++ "\"")
+        
 
 multiLineStr :: Parser Expr
 multiLineStr =
@@ -176,8 +180,8 @@ ex8' l = do
     then return l
     else do
       op <- oper8
-      r <- ex9
-      ex8' $ BinExpr l op r
+      r <- ex9 >>= ex8' 
+      return $ BinExpr l op r
 
 ex9 :: Parser Expr
 ex9 = skipJunk >> ex10 >>= ex9'
@@ -218,7 +222,7 @@ ex11 = do
 ex12 :: Parser Expr
 ex12 = do
   skipJunk
-  l <- try preEx <|> try tableEx <|> try functionDef <|> try literalExpr
+  l <- try literalExpr<|>try preEx <|>  try tableEx <|> try functionDef
   ex12' l
 
 ex12' :: Expr -> Parser Expr
@@ -229,8 +233,8 @@ ex12' l = do
     then return l
     else do
       op <- oper12
-      r <- literalExpr
-      ex12' $ BinExpr l op r
+      r <- (try literalExpr<|>try preEx <|>  try tableEx <|> try functionDef) >>= ex12'
+      return $ BinExpr l op r
 
 subEx :: Parser Expr
 subEx = do

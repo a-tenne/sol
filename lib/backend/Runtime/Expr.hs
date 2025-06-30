@@ -4,7 +4,7 @@
 
 module Runtime.Expr where
 
-import AST qualified
+import qualified AST
 import Data.Bits
 import Data.Bits.Floating (FloatingBits (coerceToFloat), coerceToWord)
 import Data.Text (pack)
@@ -201,11 +201,11 @@ interpretE :: Env -> AST.Expr -> (Env, Val)
 interpretE x (AST.BinExpr a op b) = (x3, fn a2 b2)
   where
     (x2, a2) = interpretE x a
-    fn :: Val -> Val -> Val = binOpToFn (collator x2) op
+    fn = binOpToFn (collator x2) op
     (x3, b2) = interpretE x2 b
 interpretE x (AST.UnaryExpr op y) = (x2, fn b)
   where
-    fn :: Val -> Val = unOpToFn op
+    fn = unOpToFn op
     (x2, b) = interpretE x y
 interpretE x (AST.LiteralExpr y) = (x, valFromLiteral y)
 interpretE x (AST.PreExpr y) = interpretPE x y

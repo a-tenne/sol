@@ -53,7 +53,7 @@ instance Show Literal where
   show (NumLit x) = show x
   show (StringLit x) = show x
 
-data Field = ExField Expr Expr | NamedField String Expr | SingleExField Expr
+data Field = ExField Expr Expr | NamedField Name Expr | SingleExField Expr
   deriving (Eq)
 
 instance Show Field where
