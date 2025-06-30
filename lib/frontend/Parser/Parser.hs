@@ -294,10 +294,12 @@ prefixEx' = do
       if isConcat
         then return PrefixEmpty
         else case nextChar of
-          '[' -> tableIndex <|> callArgs
+          '[' -> try tableIndex <|> try callArgs
           '.' -> dotIndex
           '(' -> callArgs
           '{' -> callArgs
+          '"' -> callArgs
+          '\'' -> callArgs
           ':' -> methodArgs
           _ -> return PrefixEmpty
 

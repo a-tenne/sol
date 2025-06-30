@@ -126,17 +126,68 @@ whileDo1 = testTemplate "Parses empty while do" expected stat input
   where
     expected = WhileDo TRUE (Block (StatList []) Nothing)
     input = "while true do end"
+
 whileDo2 :: Test
 whileDo2 = testTemplate "Parses nested while do with return" expected stat input
   where
-    expected = WhileDo TRUE (Block (StatList [WhileDo TRUE (Block (StatList [Break, Semic]) Nothing)] ) (Just $ RetStat  $ ExprList [NIL]))
+    expected = WhileDo TRUE (Block (StatList [WhileDo TRUE (Block (StatList [Break, Semic]) Nothing)]) (Just $ RetStat $ ExprList [NIL]))
     input = "while true do while true do break; end return nil end"
 
 whileDoTests :: Test
 whileDoTests = TestList [whileDo1, whileDo2]
 
+repeatUntil1 :: Test
+repeatUntil1 = testTemplate "Parses empty repeat until" expected stat input
+  where
+    expected = RepeatUntil (Block (StatList []) Nothing) FALSE
+    input = "repeat until false"
+
+repeatUntil2 :: Test
+repeatUntil2 = testTemplate "Parses nested repeat until with return" expected stat input
+  where
+    expected = RepeatUntil (Block (StatList [RepeatUntil (Block (StatList [Break, Semic]) Nothing) FALSE]) (Just $ RetStat $ ExprList [LiteralExpr (StringLit "retval")])) TRUE
+    input = "repeat repeat break; until false return \"retval\"; until true"
+
 repeatUntilTests :: Test
-repeatUntilTests = TestList []
+repeatUntilTests = TestList [repeatUntil1, repeatUntil2]
+
+funcCall1 :: Test
+funcCall1 = testTemplate "Parses simle function call" expected stat "fn()"
+  where
+    expected = FuncCallStat $ FuncCall $ PrefixName "fn" (CallArgs (ArgList (ExprList [])) PrefixEmpty)
+
+funcCall2 :: Test
+funcCall2 = testTemplate "Parses function call with string args" expected stat "fn \"arg\""
+  where
+    expected = FuncCallStat $ FuncCall $ PrefixName "fn" (CallArgs (ArgString (LiteralExpr (StringLit "arg"))) PrefixEmpty)
+
+funcCall3 :: Test
+funcCall3 = testTemplate "Parses function call with string args" expected stat "fn 'arg'"
+  where
+    expected = FuncCallStat $ FuncCall $ PrefixName "fn" (CallArgs (ArgString (LiteralExpr (StringLit "arg"))) PrefixEmpty)
+
+funcCall4 :: Test
+funcCall4 = testTemplate "Parses function call with multi line string args" expected stat "fn [====[\narg\n]====]"
+  where
+    expected = FuncCallStat $ FuncCall $ PrefixName "fn" (CallArgs (ArgString (LiteralExpr (StringLit "\narg\n"))) PrefixEmpty)
+
+funcCall5 :: Test
+funcCall5 = testTemplate "Parses function call with multiple args" expected stat "fn('stringarg', true, false, nil, {})"
+  where
+    expected = FuncCallStat $ FuncCall $ PrefixName "fn" (CallArgs (ArgList (ExprList [LiteralExpr (StringLit "stringarg"), TRUE, FALSE, NIL, TableExpr (TableConstructor [])])) PrefixEmpty)
+
+funcCall6 :: Test
+funcCall6 = testTemplate "Parses method function call" expected stat "fn:m()"
+  where
+    expected = FuncCallStat $ FuncCall $ PrefixName "fn" (MethodArgs "m" (ArgList (ExprList [])) PrefixEmpty)
+
+funcCall7 :: Test
+funcCall7 = testTemplate "Parses function call with table constructor args" expected stat "fn {}"
+  where
+    expected = FuncCallStat $ FuncCall $ PrefixName "fn" (CallArgs (ArgTable (TableConstructor [])) PrefixEmpty)
+
+funcCallTests :: Test
+funcCallTests = TestList [funcCall1, funcCall2, funcCall3, funcCall4, funcCall5, funcCall6, funcCall7]
 
 statTests :: Test
-statTests = TestList [assignTests, labelTests, semicTests, breakTests, gotoTests, doTests, whileDoTests]
+statTests = TestList [assignTests, labelTests, semicTests, breakTests, gotoTests, doTests, whileDoTests, repeatUntilTests, funcCallTests]
