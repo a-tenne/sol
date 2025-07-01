@@ -53,7 +53,11 @@ intDiv (StringVal x) (StringVal y) = NumVal $ fromIntegral $ floor (a / b)
 intDiv _ _ = undefined
 
 valConcat :: Val -> Val -> Val
-valConcat x y = StringVal $ show x ++ show y
+valConcat (StringVal x) (StringVal y) = StringVal $ show (StringVal x) ++ show (StringVal y)
+valConcat (StringVal x) (NumVal y) = StringVal $ show (StringVal x) ++ show (NumVal y)
+valConcat (NumVal x) (StringVal y) = StringVal $ show (NumVal x) ++ show (StringVal y)
+valConcat (NumVal x) (NumVal y) = StringVal $ show (NumVal x) ++ show (NumVal y)
+valConcat x y = undefined
 
 valAnd :: Val -> Val -> Val
 valAnd (BoolVal True) x = x
@@ -215,4 +219,3 @@ interpretE x AST.FALSE = (x, BoolVal False)
 interpretE _ AST.TRIPLE_DOT = undefined
 interpretE _ (AST.TableExpr _) = undefined
 interpretE _ (AST.FunctionDef _) = undefined
-

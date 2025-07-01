@@ -9,7 +9,7 @@ data Val = StringVal String | NumVal Double | BoolVal Bool | NilVal
 
 instance Show Val where
   show (StringVal x) = x
-  show (NumVal x) = show x
+  show (NumVal x) = if fromIntegral (round x) == x then show $ round x else show x
   show (BoolVal x) = map toLower $ show x
   show NilVal = "nil"
 
