@@ -1,9 +1,9 @@
 module Main where
 
+import Expr (exprTests)
+import Stat (statTests)
 import System.Exit (exitFailure, exitSuccess)
 import Test.HUnit
-import Stat(statTests)
-import Expr(exprTests)
 
 tests = TestList [statTests, exprTests]
 

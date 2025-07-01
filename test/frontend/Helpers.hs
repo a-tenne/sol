@@ -1,7 +1,8 @@
 module Helpers where
-import Text.Parsec.String (Parser)
-import Text.Parsec (ParseError, parse)
+
 import Test.HUnit
+import Text.Parsec (ParseError, parse)
+import Text.Parsec.String (Parser)
 
 parseWrapper :: Parser a -> String -> Either ParseError a
 parseWrapper x = parse x ""

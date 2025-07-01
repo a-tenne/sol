@@ -121,9 +121,21 @@ test-suite frontend-test
 
   other-modules:      Expr,
                       Stat,
-                      Prog,
                       Helpers
 
   hs-source-dirs:     test/frontend
   default-language: GHC2021
 
+test-suite backend-test
+  type:               exitcode-stdio-1.0
+
+  main-is:            Spec.hs
+
+  build-depends:      base >= 4.17.2.1 && < 4.19,
+                      HUnit,
+                      sol-frontend,
+                      sol-backend,
+                      parsec
+
+  hs-source-dirs:     test/backend
+  default-language: GHC2021

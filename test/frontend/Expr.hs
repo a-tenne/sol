@@ -1,7 +1,7 @@
 module Expr where
 
 import AST
-import Helpers (parseWrapper, testTemplate)
+import Helpers (testTemplate)
 import Parser.Parser
 import Test.HUnit
 import Text.Parsec.String (Parser)
@@ -36,27 +36,38 @@ tableTests = TestList [table1, table2]
 string1 :: Test
 string1 =
   testTemplate
-    "Parses escaped single line string"
-    (LiteralExpr (StringLit end))
+    "Parses single quote string"
+    (LiteralExpr (StringLit input))
     ex1
-    start
+    expected
   where
-    start = "\"hello\\r\\n\\t\\\\\""
-    end = "hello\r\n\t\\"
+    expected = "'hello there'"
+    input = "hello there"
 
 string2 :: Test
 string2 =
   testTemplate
-    "Parses multi line string"
-    (LiteralExpr (StringLit end))
+    "Parses escaped single line string"
+    (LiteralExpr (StringLit input))
     ex1
-    start
+    expected
   where
-    start = "[==[hello\n\\thaskell\\r\\nworld]==]"
-    end = "hello\n\\thaskell\\r\\nworld"
+    expected = "\"hello\\r\\n\\t\\\\\""
+    input = "hello\r\n\t\\"
+
+string3 :: Test
+string3 =
+  testTemplate
+    "Parses multi line string"
+    (LiteralExpr (StringLit input))
+    ex1
+    expected
+  where
+    expected = "[==[hello\n\\thaskell\\r\\nworld]==]"
+    input = "hello\n\\thaskell\\r\\nworld"
 
 stringTests :: Test
-stringTests = TestList [string1, string2]
+stringTests = TestList [string1, string2, string3]
 
 primitive1 :: Test
 primitive1 = testTemplate "Parses nil" NIL ex1 "nil"
@@ -93,7 +104,7 @@ function3 = testTemplate "Parses empty function expression" expected ex1 "functi
 function4 :: Test
 function4 = testTemplate "Parses complex function expression" expected ex1 input
   where
-    expected = FunctionDef (FuncBody (ParamList (NameList ["a","b"]) (Just VarArg)) (Block (StatList []) (Just $ RetStat $ ExprList [LiteralExpr (StringLit "retval")])))
+    expected = FunctionDef (FuncBody (ParamList (NameList ["a", "b"]) (Just VarArg)) (Block (StatList []) (Just $ RetStat $ ExprList [LiteralExpr (StringLit "retval")])))
     input = "function(a,b, ...) return \"retval\" end"
 
 functionTests :: Test
@@ -102,12 +113,12 @@ functionTests = TestList [function1, function2, function3, function4]
 complex :: Test
 complex =
   testTemplate
-    ("Parses complex expression " ++ exprStr)
+    ("Parses complex expression " ++ input)
     expected
     ex1
-    exprStr
+    input
   where
-    exprStr = "#(~4 // -0x5.3p-2 ^ (0x5 + 80.623 * \"0x12\"))"
+    input = "#(~4 // -0x5.3p-2 ^ (0x5 + 80.623 * \"0x12\"))"
     expected =
       UnaryExpr
         U_LEN
