@@ -71,7 +71,7 @@ library sol-frontend
   default-language: GHC2021
 
 library sol-backend
-  exposed-modules: Runtime.Expr, Runtime.Types, Runtime.Runtime
+  exposed-modules: Runtime.Expr, Runtime.Types, Runtime.Runtime, Runtime.Stat
 
   hs-source-dirs: lib/backend
 
@@ -136,9 +136,10 @@ test-suite backend-test
                       sol-frontend,
                       sol-backend,
                       parsec,
-                      containers
+                      containers,
+                      silently
 
-  other-modules:      Expr
+  other-modules:      Expr, Runtime
 
   hs-source-dirs:     test/backend
   default-language: GHC2021

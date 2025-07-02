@@ -223,3 +223,10 @@ interpretE g l AST.FALSE =return (g,l, BoolVal False)
 interpretE _ _ AST.TRIPLE_DOT = undefined
 interpretE _ _ (AST.TableExpr _) = undefined
 interpretE _ _ (AST.FunctionDef _) = undefined
+
+interpretEL :: GlobalEnv -> Env -> AST.ExprList -> IO (GlobalEnv, Env, [Val])
+interpretEL g l (AST.ExprList []) = return (g,l,[])
+interpretEL g l (AST.ExprList (x:xs)) = do
+  (g2, l2, v) <- interpretE g l x
+  (g3, l3, vl) <- interpretEL g2 l2 (AST.ExprList xs)
+  return (g3,l3, v:vl)
