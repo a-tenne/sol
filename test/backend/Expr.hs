@@ -9,6 +9,7 @@ import Runtime.Types
 import Test.HUnit
 import Text.Parsec (parse)
 import Parser.Parser
+import Text.Parsec.Token (GenTokenParser(reserved))
 
 g = initialEnv
 l = EnvEmpty
@@ -32,12 +33,19 @@ arithFns :: [(Double -> Double -> Double, String)]
 arithFns = [((+), "addition"), ((-), "subtraction"), ((*), "multiplication"), ((/), "division"), ((**), "exponantiation")]
 
 arithTemplate :: Val -> Val -> Test
-arithTemplate (NumVal a) (NumVal b) = TestList $ map (\(x, y) -> TestCase $ assertEqual ("Evaluates " ++ y ++ " between " ++ show a ++ " and " ++ show b) (g,l,NumVal $ x a b) (arith x g l  (NumVal a) (NumVal b))) arithFns
-arithTemplate (StringVal a) (StringVal b) = TestList $ map (\(x, y) -> TestCase $ assertEqual ("Evaluates " ++ y ++ " between " ++ show a ++ " and " ++ show b) (g,l, NumVal $ x a2 b2) (arith x g l (NumVal a2) (NumVal b2))) arithFns
+arithTemplate (NumVal a) (NumVal b) = TestList $ map (\(x, y) -> TestCase $ do
+  (_,_, res) <- arith x g l  (NumVal a) (NumVal b)
+  assertEqual ("Evaluates " ++ y ++ " between " ++ show a ++ " and " ++ show b) (NumVal $ x a b) res ) arithFns
+
+arithTemplate (StringVal a) (StringVal b) = TestList $ map (\(x, y) -> TestCase $ do
+  (_,_,res) <- arith x g l (NumVal a2) (NumVal b2)
+  assertEqual ("Evaluates " ++ y ++ " between " ++ show a ++ " and " ++ show b) (NumVal $ x a2 b2) res) arithFns
   where
     (NumVal a2) = coerce a
     (NumVal b2) = coerce b
-arithTemplate (NumVal a) (StringVal b) = TestList $ map (\(x, y) -> TestCase $ assertEqual ("Evaluates " ++ y ++ " between " ++ show a ++ " and " ++ show b) (g,l, NumVal $ x a b2) (arith x g l (NumVal a) (NumVal b2))) arithFns
+arithTemplate (NumVal a) (StringVal b) = TestList $ map (\(x, y) -> TestCase $ do
+  (_,_,res) <- arith x g l (NumVal a) (NumVal b2)
+  assertEqual ("Evaluates " ++ y ++ " between " ++ show a ++ " and " ++ show b) (NumVal $ x a b2) res) arithFns
   where
     (NumVal b2) = coerce b
 arithTemplate (StringVal a) (NumVal b) = arithTemplate (NumVal b) (StringVal a)
@@ -45,7 +53,7 @@ arithTemplate a b = TestList $ map (\(x, y) -> crashTemplate (arith x) y a b) ar
 
 crashTemplate :: BinFn -> String -> Val -> Val -> Test
 crashTemplate fn name a b = TestCase $ do
-  result <- try (evaluate (fn g l a b)) :: IO (Either SomeException (GlobalEnv, Env, Val))
+  result <- try (fn g l a b) :: IO (Either SomeException (GlobalEnv, Env, Val))
   case result of
     Left _ -> return ()
     Right _ ->
@@ -66,46 +74,54 @@ arith5 = arithTemplate (BoolVal True) (NumVal 10.0)
 arith6 = arithTemplate NilVal (NumVal 2000.75)
 
 arith7 :: Test
-arith7 = TestCase $ assertEqual "Evaluates division between 0 and 0" True (isNaN result)
-  where
-    (_, _, NumVal result) = arith (/) g l (NumVal 0) (NumVal 0)
+arith7 = TestCase $ do
+  (_, _, NumVal result) <- arith (/) g l (NumVal 0) (NumVal 0)
+  assertEqual "Evaluates division between 0 and 0" True (isNaN result)
 
 arithTests :: Test
 arithTests = TestList [arith1, arith2, arith3, arith4, arith5, arith6, arith7]
 
 intDiv1 :: Test
-intDiv1 = TestCase $ assertEqual ("Evaluates integer division between " ++ show a ++ " and " ++ show b) expected (intDiv g l a b)
+intDiv1 = TestCase $ do
+  (_,_,res) <- intDiv g l a b
+  assertEqual ("Evaluates integer division between " ++ show a ++ " and " ++ show b) expected res
   where
     x = 205.23
     y = 3.6
-    expected = (g,l, NumVal $ fromIntegral $ floor (x / y))
+    expected = NumVal $ fromIntegral $ floor (x / y)
     a = NumVal x
     b = NumVal y
 
 intDiv2 :: Test
-intDiv2 = TestCase $ assertEqual ("Evaluates integer division between " ++ show a ++ " and string " ++ show b) expected (intDiv g l a b)
+intDiv2 = TestCase $ do
+  (_,_,res) <- intDiv g l a b
+  assertEqual ("Evaluates integer division between " ++ show a ++ " and " ++ show b) expected res
   where
     x = 0x60.3p-2
     y = 20.3
-    expected =(g,l, NumVal $ fromIntegral $ floor (x / y))
+    expected =NumVal $ fromIntegral $ floor (x / y)
     a = NumVal x
     b = StringVal (show y)
 
 intDiv3 :: Test
-intDiv3 = TestCase $ assertEqual ("Evaluates integer division between string " ++ show a ++ " and " ++ show b) expected (intDiv g l a b)
+intDiv3 = TestCase $ do
+  (_,_,res) <- intDiv g l a b
+  assertEqual ("Evaluates integer division between string " ++ show a ++ " and " ++ show b) expected res
   where
     x = 0xFF
     y = 0x10
-    expected =(g,l, NumVal $ fromIntegral $ floor (x / y))
+    expected =NumVal $ fromIntegral $ floor (x / y)
     a = StringVal (show x)
     b = NumVal y
 
 intDiv4 :: Test
-intDiv4 = TestCase $ assertEqual ("Evaluates integer division between string " ++ show a ++ " and string " ++ show b) expected (intDiv g l a b)
+intDiv4 = TestCase $ do
+  (_,_,res) <- intDiv g l a b
+  assertEqual ("Evaluates integer division between string " ++ show a ++ " and string " ++ show b) expected res
   where
     x = 30000
     y = 5400
-    expected =(g,l, NumVal $ fromIntegral $ floor (x / y))
+    expected =NumVal $ fromIntegral $ floor (x / y)
     a = StringVal (show x)
     b = StringVal (show y)
 
@@ -122,19 +138,23 @@ intDivTests :: Test
 intDivTests = TestList [intDiv1, intDiv2, intDiv3, intDiv4, intDiv5, intDiv6, intDiv7]
 
 concat1 :: Test
-concat1 = TestCase $ assertEqual ("String concatenation between " ++ show a ++ " and " ++ show b) expected (valConcat g l a b)
+concat1 = TestCase $ do
+  (_,_,res ) <- valConcat g l a b
+  assertEqual ("String concatenation between " ++ show a ++ " and " ++ show b) expected res
   where
     x = 10.5
     y = 555
-    expected =(g,l, StringVal "10.5555")
+    expected =StringVal "10.5555"
     a = NumVal x
     b = NumVal y
 concat2 :: Test
-concat2 = TestCase $ assertEqual ("String concatenation between " ++ show a ++ " and " ++ show b) expected (valConcat g l a b)
+concat2 = TestCase $ do
+  (_,_,res ) <- valConcat g l a b
+  assertEqual ("String concatenation between " ++ show a ++ " and " ++ show b) expected res
   where
     x = "str1"
     y = "str2"
-    expected =(g,l, StringVal $ x ++ y)
+    expected =StringVal $ x ++ y
     a = StringVal x
     b = StringVal y
 
@@ -148,104 +168,132 @@ concatTests :: Test
 concatTests = TestList [concat1, concat2, concat3, concat4]
 
 andTest1 :: Test
-andTest1 = TestCase $ assertEqual ("Evaluates and between " ++ show a ++ ", " ++ show b) expected (valAnd g l a b)
+andTest1 = TestCase $ do
+  (_,_,res) <- valAnd g l a b
+  assertEqual ("Evaluates and between " ++ show a ++ ", " ++ show b) expected res
   where
     a = BoolVal True
     b = StringVal "expected"
-    expected = (g,l, b)
+    expected = b
 andTest2 :: Test
-andTest2 = TestCase $ assertEqual ("Evaluates and between " ++ show a ++ ", " ++ show b) expected (valAnd g l a b)
+andTest2 = TestCase $ do
+  (_,_,res) <- valAnd g l a b
+  assertEqual ("Evaluates and between " ++ show a ++ ", " ++ show b) expected res
   where
     a = BoolVal False
     b = StringVal "unexpected"
-    expected = (g,l, a)
+    expected = a
 andTest3 :: Test
-andTest3 = TestCase $ assertEqual ("Evaluates and between " ++ show a ++ ", " ++ show b) expected (valAnd g l a b)
+andTest3 = TestCase $ do
+  (_,_,res) <- valAnd g l a b
+  assertEqual ("Evaluates and between " ++ show a ++ ", " ++ show b) expected res
   where
     a = NilVal
     b = StringVal "unexpected"
-    expected = (g,l, a)
+    expected = a
 
 andTests :: Test
 andTests = TestList [andTest1, andTest2, andTest3]
 
 orTest1 :: Test
-orTest1 = TestCase $ assertEqual ("Evaluates or between " ++ show a ++ ", " ++ show b) expected (valOr g l a b)
+orTest1 = TestCase $ do
+  (_,_,res) <- valOr g l a b
+  assertEqual ("Evaluates or between " ++ show a ++ ", " ++ show b) expected res
   where
     a = BoolVal True
     b = StringVal "unexpected"
-    expected = (g,l, a)
+    expected = a
 orTest2 :: Test
-orTest2 = TestCase $ assertEqual ("Evaluates or between " ++ show a ++ ", " ++ show b) expected (valOr g l a b)
+orTest2 = TestCase $ do
+  (_,_,res) <- valOr g l a b
+  assertEqual ("Evaluates or between " ++ show a ++ ", " ++ show b) expected res
   where
     a = BoolVal False
     b = StringVal "expected"
-    expected = (g,l, b)
+    expected = b
 orTest3 :: Test
-orTest3 = TestCase $ assertEqual ("Evaluates or between " ++ show a ++ ", " ++ show b) expected (valOr g l a b)
+orTest3 = TestCase $ do
+  (_,_,res) <- valOr g l a b
+  assertEqual ("Evaluates or between " ++ show a ++ ", " ++ show b) expected res
   where
     a = NilVal
     b = StringVal "expected"
-    expected = (g,l, b)
+    expected = b
 
 orTests :: Test
 orTests = TestList [orTest1, orTest2, orTest3]
 
 eqTest1 :: Test
-eqTest1 = TestCase $ assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected (valEq g l a b)
+eqTest1 = TestCase $ do
+  (_,_,res) <- valEq g l a b
+  assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected res
   where
-    expected =(g,l, BoolVal True)
+    expected =BoolVal True
     a = BoolVal True
     b = BoolVal True
 
 eqTest2 :: Test
-eqTest2 = TestCase $ assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected (valEq g l a b)
+eqTest2 = TestCase $ do
+  (_,_,res) <- valEq g l a b
+  assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected res
   where
-    expected =(g,l, BoolVal False)
+    expected =BoolVal False
     a = BoolVal True
     b = StringVal "true"
 
 
 eqTest3 :: Test
-eqTest3 = TestCase $ assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected (valEq g l a b)
+eqTest3 = TestCase $ do
+  (_,_,res) <- valEq g l a b
+  assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected res
   where
-    expected =(g,l, BoolVal True)
+    expected =BoolVal True
     a = StringVal "str"
     b = StringVal "str"
 eqTest4 :: Test
-eqTest4 = TestCase $ assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected (valEq g l a b)
+eqTest4 = TestCase $ do
+  (_,_,res) <- valEq g l a b
+  assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected res
   where
-    expected =(g,l, BoolVal False)
+    expected =BoolVal False
     a = NumVal 1
     b = NumVal 2
 
 eqTests :: Test
 eqTests = TestList [eqTest1, eqTest2, eqTest3, eqTest4]
 neqTest1 :: Test
-neqTest1 = TestCase $ assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected (valNe g l a b)
+neqTest1 = TestCase $ do
+  (_,_,res) <- valNe g l a b
+  assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected res
   where
-    expected =(g,l, BoolVal False)
+    expected =BoolVal False
     a = BoolVal True
     b = BoolVal True
 
 neqTest2 :: Test
-neqTest2 = TestCase $ assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected (valNe g l a b)
+neqTest2 = TestCase $ do
+  (_,_,res) <- valNe g l a b
+  assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected res
   where
-    expected =(g,l, BoolVal True)
+    expected =BoolVal True
     a = BoolVal True
     b = StringVal "true"
 
 
 neqTest3 :: Test
-neqTest3 = TestCase $ assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected (valNe g l a b)
+neqTest3 = TestCase $ do
+  (_,_,res) <- valNe g l a b
+  assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected res
   where
-    expected =(g,l, BoolVal False)
+    expected =BoolVal False
     a = StringVal "str"
     b = StringVal "str"
 neqTest4 :: Test
-neqTest4 = TestCase $ assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected (valNe g l a b)
+neqTest4 = TestCase $ do
+  (_,_,res) <- valNe g l a b
+  assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected res
   where
-    expected =(g,l, BoolVal True)
+    expected =BoolVal True
     a = NumVal 1
     b = NumVal 2
 
@@ -253,16 +301,20 @@ neqTests :: Test
 neqTests = TestList [neqTest1, neqTest2, neqTest3, neqTest4]
 
 gt1 :: Test
-gt1 = TestCase $ assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected (valGt g l a b)
+gt1 = TestCase $ do
+  (_,_,res) <- valGt g l a b
+  assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected res
   where
-    expected =(g,l, BoolVal True)
+    expected =BoolVal True
     operation = ">"
     a = StringVal "abc"
     b = StringVal "abb"
 gt2 :: Test
-gt2 = TestCase $ assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected (valGt g l a b)
+gt2 = TestCase $ do
+  (_,_,res) <- valGt g l a b
+  assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected res
   where
-    expected =(g,l, BoolVal False)
+    expected =BoolVal False
     operation = ">"
     a = NumVal 5
     b = NumVal 6
@@ -281,16 +333,20 @@ gt4 = crashTemplate valGt "greater" a b
 gtTests :: Test
 gtTests = TestList [gt1, gt2, gt3, gt4]
 lt1 :: Test
-lt1 = TestCase $ assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected (valLt g l a b)
+lt1 = TestCase $ do
+  (_,_,res) <- valLt g l a b
+  assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected res
   where
-    expected =(g,l, BoolVal False)
+    expected =BoolVal False
     operation = "<"
     a = StringVal "abc"
     b = StringVal "abb"
 lt2 :: Test
-lt2 = TestCase $ assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected (valLt g l a b)
+lt2 = TestCase $ do
+  (_,_,res) <- valLt g l a b
+  assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected res
   where
-    expected =(g,l, BoolVal True)
+    expected =BoolVal True
     operation = "<"
     a = NumVal 5
     b = NumVal 6
@@ -333,23 +389,26 @@ rshiftTests :: Test
 rshiftTests = TestList []
 
 interpretE1 :: Test
-interpretE1 = TestCase $ assertEqual "Evaluates simple addition between numbers" (NumVal 6) res
+interpretE1 = TestCase $ do
+  (_,_, res) <- interpretE g l tree
+  assertEqual "Evaluates simple addition between numbers" (NumVal 6) res
   where
     (Right tree) = parse ex1 "" "1+2+3"
-    (_,_, res) = interpretE g l tree
-    
+
 interpretE2 :: Test
-interpretE2 = TestCase $ assertEqual "Evaluates simple addition and multiplication between numbers" (NumVal 7) res
+interpretE2 = TestCase $ do
+  (_,_, res) <- interpretE g l tree
+  assertEqual "Evaluates simple addition and multiplication between numbers" (NumVal 7) res
   where
     (Right tree) = parse ex1 "" "1+2*3"
-    (_,_, res) = interpretE g l tree
 
 interpretE3 :: Test
-interpretE3 = TestCase $ assertEqual ("Evaluates complex expression " ++ show ex) (NumVal (-1)) res
+interpretE3 = TestCase $ do
+  (_,_, res) <- interpretE g l tree
+  assertEqual ("Evaluates complex expression " ++ show ex) (NumVal (-1)) res
   where
     ex = "200000000 // -0x5.3p-2 ^ (0X5 + 80.623 * '0x12')"
     (Right tree) = parse ex1 "" ex
-    (_,_, res) = interpretE g l tree
 
 interpretETests :: Test
 interpretETests = TestList [interpretE1, interpretE2, interpretE3]
