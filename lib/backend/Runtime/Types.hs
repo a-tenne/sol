@@ -13,4 +13,14 @@ instance Show Val where
   show (BoolVal x) = map toLower $ show x
   show NilVal = "nil"
 
-data Env = Env { vars :: Map String Val, collator :: Collator }
+data GlobalEnv = GlobalEnv { vars :: Map String Val, collator :: Collator }
+
+instance Show GlobalEnv where
+  show x = "GlobalEnv {" ++ show (vars x) ++ "}"
+
+instance Eq GlobalEnv where
+  x == y = vars x == vars y
+
+data Env = Env (Map String Val) Env | EnvEmpty
+  deriving(Eq, Show)
+
