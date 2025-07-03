@@ -5,6 +5,7 @@ import Control.Monad (void)
 import Runtime.Expr
 import Runtime.Runtime
 import Runtime.Types
+import Data.Bits (Bits(xor))
 
 interpret :: AST -> IO ()
 interpret (AST ch) = interpretCh ch
@@ -76,10 +77,10 @@ interpretS g l (LocalAsgn (AttrNameList attrnL) mEl) = do
   if lenDiff > 0
     then do
       let vl2 = vl ++ replicate lenDiff NilVal
-      let (g3,l3) = insertVarsLocal g2 l2 nl vl2
+      let (g3,l3) = insertVarsCurrent g2 l2 nl vl2
       return (g3,l3,Nothing)
     else do
-      let (g3,l3) = insertVarsLocal g2 l2 nl vl
+      let (g3,l3) = insertVarsCurrent g2 l2 nl vl
       return (g3,l3,Nothing)
 interpretS g l (FuncCallStat (FuncCall ex)) = do
   (g2, l2, _) <- interpretPE g l ex
@@ -91,21 +92,51 @@ interpretS g l (ForStat n e1 e2 me b) = do
     Just x -> interpretE g3 l3 x
     Nothing -> return (g3,l3, [NumVal 1])
   assertNumber start >> assertNumber end >> assertNumber incr
-  -- create environment for the index variable
-  -- insert index into indexEnv
-  let (g5,indexEnv) = insertVarCurrent g4 (newLocalEnv (Just l4)) n start
-  -- create new environment for loop with indexEnv as parent
-  let loopEnv = newLocalEnv (Just indexEnv)
-  -- run loop with loop environment
-  (g6, ret) <- forIter g5 loopEnv n end incr b
-  -- return old local env and new global env
-  return (g6,l4,ret)
+  -- insert index into env
+  let (g5,l5) = insertVarCurrent g4 (newLocalEnv (Just l4)) n start
+  -- run loop
+  -- Note: the loop creates an own environment on each iteration
+  (g6,l6, ret) <- forIter g5 l5 n end incr b
+  -- gets updated parent env
+  let l7 = case getParent l6 of
+        Just x -> x
+        Nothing -> error "Internal error"
+  -- return updated local env without index and new global env
+  return (g6,l7,ret)
     where
       assertNumber :: Val -> IO()
       assertNumber (NumVal _) = return ()
       assertNumber x = error $ "for loop index value " ++ show x ++ " is not a number"
-interpretS _ _ (WhileDo {}) = undefined
-interpretS _ _ (RepeatUntil {}) = undefined
+
+interpretS g l (WhileDo e b) = do
+  (g2,l2,v:_) <- interpretE g l e
+  if valIsTrue v
+    then do
+      let loopEnv = newLocalEnv (Just l2)
+      (g3, loopEnv2, ret) <- interpretB g2 loopEnv b
+      let l3 = case getParent loopEnv2 of
+            Just x -> x
+            Nothing -> error "Internal error"
+      case ret of
+          Just _ -> return (g3,l3,ret)
+          Nothing -> interpretS g3 l3 (WhileDo e b)
+    else
+      return (g2,l2,Nothing)
+
+interpretS g l (RepeatUntil b e) = do
+  let loopEnv = newLocalEnv (Just l)
+  (g2, loopEnv2, ret) <- interpretB g loopEnv b
+  let l2 = case getParent loopEnv2 of
+        Just x -> x
+        Nothing -> error "Internal error"
+  case ret of
+      Just _ -> return (g2,l2,ret)
+      Nothing -> do
+        (g3,l3, v:_) <- interpretE g2 l2 e
+        if valIsTrue v 
+          then return(g,l,Nothing)
+          else interpretS g3 l3 (RepeatUntil b e)
+
 interpretS _ _ (IfStat {}) = undefined
 interpretS _ _ (ForIn {}) = undefined
 interpretS _ _ (FuncDefStat {}) = undefined
@@ -113,23 +144,28 @@ interpretS _ _ (LocalFuncStat {}) = undefined
 interpretS _ _ Break = error "Internal error: a break should be handled in statement list processing"
 interpretS _ _ (Label _) = error "Internal error: a label should be handled in statement list processing"
 interpretS _ _ (Goto _) = error "Internal error: a goto should be handled in statement list processing"
--- Regular for loop iteration. Does not return a local environment, since its own gets discarded
-forIter :: GlobalEnv -> Env -> Name -> Val -> Val -> Block -> IO(GlobalEnv, Maybe[Val])
+-- Regular for loop iteration.
+forIter :: GlobalEnv -> Env -> Name -> Val -> Val -> Block -> IO(GlobalEnv, Env, Maybe[Val])
 forIter g l n (NumVal end) (NumVal incr) b
   -- end condition
-  | current > end = return (g, Nothing)
+  | current > end = return (g,l, Nothing)
   | otherwise = do
+    -- create loop environment
+    let loopEnv = newLocalEnv (Just l)
     -- interpret block
-    (g2,l2, ret) <- interpretB g l b
+    (g2,loopEnv2, ret) <- interpretB g loopEnv b
+    -- get updated parent env
+    let l2 = case getParent loopEnv2 of
+          Just x -> x
+          Nothing -> error "Internal error"
     case ret of
       Nothing -> do
         -- update index variable and keep going
-        let (g3,l3) = insertVarLocal g l n (NumVal $ current + incr)
+        let (g3,l3) = insertVarLocal g2 l2 n (NumVal $ current + incr)
         forIter g3 l3 n (NumVal end) (NumVal incr) b
       -- exit loop in case of return statement
-      Just _ -> return (g2, ret)
+      Just _ -> return (g2,l2, ret)
       where
-        (Env _ parent) = l
-        -- Gets the current index from the upper local environment
+        -- Gets the current index from the local environment
         -- Note that we can use getVal here, because we know it exists within the environment.
-        (NumVal current) = getVar g parent n
+        (NumVal current) = getVar g l n

@@ -50,6 +50,10 @@ newLocalEnv :: Maybe Env -> Env
 newLocalEnv Nothing = Env M.empty EnvEmpty
 newLocalEnv (Just parent) = Env M.empty parent
 
+getParent :: Env -> Maybe Env
+getParent EnvEmpty = Nothing
+getParent (Env _ parent) = Just parent
+
 insertVarLocal :: GlobalEnv -> Env -> String -> Val -> (GlobalEnv, Env)
 insertVarLocal g EnvEmpty key value = (insertVarGlobal g key value, EnvEmpty)
 insertVarLocal g (Env localVars parent) key value = case exists of

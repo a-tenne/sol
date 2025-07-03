@@ -138,6 +138,11 @@ valRshift :: BinFn
 valRshift g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x `shiftR` floor y)
 valRshift _ _ _ _ = undefined
 
+valIsTrue :: Val -> Bool
+valIsTrue (BoolVal False) = False
+valIsTrue NilVal = False
+valIsTrue _ = True
+
 binOpToFn :: GlobalEnv -> Env -> AST.BIN_OP -> BinFn
 binOpToFn g l op = case op of
   AST.OR -> valOr
