@@ -24,7 +24,7 @@ lookupVarGlobal g key = M.lookup key (vars g)
 
 lookupVarLocal :: Env -> String -> Maybe Val
 lookupVarLocal EnvEmpty _ = Nothing
-lookupVarLocal (Env localVars parent) key = case M.lookup key localVars of
+lookupVarLocal (Env localVars _ parent) key = case M.lookup key localVars of
   Nothing -> lookupVarLocal parent key
   x -> x
 
@@ -47,27 +47,27 @@ getVar g l key = case resL of
     resL = lookupVarLocal l key
 
 newLocalEnv :: Maybe Env -> Env
-newLocalEnv Nothing = Env M.empty EnvEmpty
-newLocalEnv (Just parent) = Env M.empty parent
+newLocalEnv Nothing = Env M.empty [] EnvEmpty
+newLocalEnv (Just parent) = Env M.empty [] parent
 
 getParent :: Env -> Maybe Env
 getParent EnvEmpty = Nothing
-getParent (Env _ parent) = Just parent
+getParent (Env _ _ parent) = Just parent
 
 insertVarLocal :: GlobalEnv -> Env -> String -> Val -> (GlobalEnv, Env)
 insertVarLocal g EnvEmpty key value = (insertVarGlobal g key value, EnvEmpty)
-insertVarLocal g (Env localVars parent) key value = case exists of
+insertVarLocal g (Env localVars varArgs parent) key value = case exists of
     Just _ -> case existsLocally of
-      Just _ -> (g, Env (M.insert key value localVars) parent)
-      Nothing ->let (g2, l2) = insertVarLocal g parent key value in (g2,Env localVars l2)
-    Nothing -> (g, Env (M.insert key value localVars) parent)
+      Just _ -> (g, Env (M.insert key value localVars) varArgs parent)
+      Nothing ->let (g2, l2) = insertVarLocal g parent key value in (g2,Env localVars varArgs l2)
+    Nothing -> (g, Env (M.insert key value localVars) varArgs parent)
   where
     existsLocally = M.lookup key localVars
-    exists = lookupVar g (Env localVars parent) key
+    exists = lookupVar g (Env localVars varArgs parent) key
 
 insertVarCurrent :: GlobalEnv -> Env -> String -> Val -> (GlobalEnv, Env)
 insertVarCurrent g EnvEmpty key value = (insertVarGlobal g key value, EnvEmpty)
-insertVarCurrent g (Env localVars parent) key value = (g, Env (M.insert key value localVars) parent) 
+insertVarCurrent g (Env localVars varArgs parent) key value = (g, Env (M.insert key value localVars) varArgs parent)
 insertVarsCurrent :: GlobalEnv -> Env -> [String] -> [Val] -> (GlobalEnv, Env)
 insertVarsCurrent g l [] _ = (g, l)
 insertVarsCurrent g l _ [] = (g, l)
@@ -81,6 +81,12 @@ insertVarsLocal g current _ [] = (g, current)
 insertVarsLocal g current (x : xs) (y : ys) = insertVarsLocal g2 l2 xs ys
   where
     (g2, l2) = insertVarLocal g current x y
+
+tableLookup :: Table -> Val -> Val
+tableLookup (Table m) key = fromMaybe NilVal (M.lookup key m)
+
+tableInsert :: Table -> Val -> Val -> Table
+tableInsert (Table m) key value = Table $ M.insert key value m
 
 formatVals :: [Val] -> [Val]
 formatVals [] = []

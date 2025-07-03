@@ -33,8 +33,8 @@ interpretB g l (Block sl rs) = do
 -- of the tuple becomes "Just [Val]" and at that point, the stack must be unwinded
 interpretSL :: GlobalEnv -> Env -> StatList -> IO (GlobalEnv, Env, Maybe [Val])
 interpretSL g l (AST.StatList []) = return (g, l, Nothing)
--- Discards the rest of the SL
-interpretSL g l (AST.StatList (Break:_)) = return (g,l,Nothing)
+-- Returns VoidVal so the stack unwinds.
+interpretSL g l (AST.StatList (Break:_)) = return (g,l,Just[VoidVal])
 -- Discards the rest of the SL, SL in label becomes new SL
 interpretSL g l (AST.StatList ((Goto n):_)) = do
   let v = lookupVar g l n
