@@ -8,11 +8,11 @@ import Runtime.Stat
 import Text.Parsec (parse)
 import Parser.Parser (program)
 
-g = initialEnv
 l = EnvEmpty
 
 funcCall1 :: Test
 funcCall1 = TestCase $ do
+  g <- initialEnv
   let (Right ast) = parse program "" "print('hello, world')"
   (output, _) <- capture $ interpret ast
   assertEqual ("Print outputs " ++ show expected) expected output

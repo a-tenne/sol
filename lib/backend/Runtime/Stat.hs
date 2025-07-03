@@ -11,7 +11,9 @@ interpret :: AST -> IO ()
 interpret (AST ch) = interpretCh ch
 
 interpretCh :: Chunk -> IO ()
-interpretCh (Chunk b) = void $ interpretB initialEnv EnvEmpty b
+interpretCh (Chunk b) = do
+  g <- initialEnv
+  void $ interpretB g EnvEmpty b
 
 interpretB :: GlobalEnv -> Env -> Block -> IO (GlobalEnv, Env, Maybe [Val])
 interpretB g l (Block sl rs) = do

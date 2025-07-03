@@ -5,11 +5,17 @@ import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
 import qualified Data.Text.ICU as ICU
 import Runtime.Types
+import Data.Unique (newUnique)
 
-initialEnvVars :: M.Map String Val
-initialEnvVars = M.fromList [("print", NatFuncVal luaPrint)]
+initialEnvVars :: IO (M.Map String Val)
+initialEnvVars = do
+  printName <- newUnique
+  return $ M.fromList [("print", NatFuncVal printName luaPrint)]
 
-initialEnv = GlobalEnv {vars = initialEnvVars, collator = ICU.collator ICU.Current}
+initialEnv :: IO GlobalEnv
+initialEnv = do
+  v <- initialEnvVars
+  return GlobalEnv {vars = v, collator = ICU.collator ICU.Current}
 
 insertVarGlobal :: GlobalEnv -> String -> Val -> GlobalEnv
 insertVarGlobal current key value = GlobalEnv {vars = M.insert key value (vars current), collator = collator current}

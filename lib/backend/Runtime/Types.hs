@@ -7,31 +7,12 @@ import Data.Text.ICU (Collator)
 import AST
 import GHC.IO (unsafePerformIO)
 import GHC.StableName (makeStableName, hashStableName)
+import Data.Unique
 
 data Table where
   Table :: (Map Val Val) -> Table
 
-data Val = StringVal String | NumVal Double | BoolVal Bool | NilVal | VoidVal | NatFuncVal NativeFunc | TableVal Table | LabelVal StatList
-
-instance Eq Val where
-  (StringVal x) == (StringVal y) = x == y
-  (NumVal x) == (NumVal y) = x == y
-  (NatFuncVal x) == (NatFuncVal y) = 
-    unsafePerformIO $ do
-      name1 <- makeStableName x
-      name2 <- makeStableName y
-      return (name1 == name2)
-  (TableVal x) == (TableVal y) =
-    unsafePerformIO $ do
-      name1 <- makeStableName x
-      name2 <- makeStableName y
-      return (name1 == name2)
-  (BoolVal x) == (BoolVal y) = x == y
-  NilVal == NilVal = True
-  VoidVal == VoidVal = True
-  _ == _ = False
-
-type NativeFunc = GlobalEnv -> Env -> [Val] -> IO(GlobalEnv, [Val])
+data Val = StringVal String | NumVal Double | BoolVal Bool | NilVal | VoidVal | NatFuncVal Unique NativeFunc | TableVal Unique Table | LabelVal StatList
 
 constructorTag :: Val -> Int
 constructorTag (StringVal _) = 0
@@ -39,8 +20,8 @@ constructorTag (NumVal _) = 1
 constructorTag (BoolVal _) = 2
 constructorTag NilVal = 3
 constructorTag VoidVal = 4
-constructorTag (NatFuncVal _) = 5
-constructorTag (TableVal _) = 6
+constructorTag (NatFuncVal {}) = 5
+constructorTag (TableVal {}) = 6
 constructorTag (LabelVal _) = 7
 
 instance Ord Val where
@@ -50,23 +31,27 @@ instance Ord Val where
       ord -> ord
 
 compareSame :: Val -> Val -> Ordering
-compareSame (StringVal a) (StringVal b) = compare a b
-compareSame (NumVal a) (NumVal b) = compare a b
-compareSame (BoolVal a) (BoolVal b) = compare a b
+compareSame (StringVal x) (StringVal y) = compare x y
+compareSame (NumVal x) (NumVal y) = compare x y
+compareSame (BoolVal x) (BoolVal y) = compare x y
 compareSame NilVal NilVal = Prelude.EQ
 compareSame VoidVal VoidVal = Prelude.EQ
-compareSame (NatFuncVal f1) (NatFuncVal f2) = compareStable f1 f2
-compareSame (TableVal t1) (TableVal t2) = compareStable t1 t2
-compareSame (LabelVal _) (LabelVal _) = Prelude.EQ  -- or error "Cannot compare LabelVal"
+compareSame (NatFuncVal x _) (NatFuncVal y _) = compare (hashUnique x) (hashUnique y)
+compareSame (TableVal x _) (TableVal y _) = compare (hashUnique x) (hashUnique y)
+compareSame (LabelVal _) (LabelVal _) = Prelude.EQ
 compareSame _ _ = error "compareSame: mismatched constructors"
 
-compareStable :: a -> a -> Ordering
-compareStable a b = unsafePerformIO $ do
-  sa <- makeStableName a
-  sb <- makeStableName b
-  let ha = hashStableName sa
-      hb = hashStableName sb
-  return (compare ha hb)
+
+instance Eq Val where
+  (StringVal x) == (StringVal y) = x == y
+  (NumVal x) == (NumVal y) = x == y
+  (BoolVal x) == (BoolVal y) = x == y
+  NilVal == NilVal = True
+  VoidVal == VoidVal = True
+  (NatFuncVal x _) == (NatFuncVal y _) = x == y
+  (TableVal x _) == (TableVal y _) = x == y
+  (LabelVal x) == (LabelVal y) = x == y
+  _ == _ = False
 
 instance Show Val where
   show (StringVal x) = x
@@ -74,14 +59,13 @@ instance Show Val where
   show (BoolVal x) = map toLower $ show x
   show NilVal = "nil"
   show VoidVal = error "attempt to show void value"
-  show (NatFuncVal x) =
-    unsafePerformIO $ do
-      n <- makeStableName x
-      return $ "function: " ++ show (hashStableName n)
-  show (TableVal x) =
-    unsafePerformIO $ do
-      n <- makeStableName x
-      return $ "table: " ++ show (hashStableName n)
+  show (NatFuncVal x _) = "function: " ++ show (hashUnique x)
+  show (TableVal x _) = "table: " ++ show (hashUnique x)
+  
+
+type NativeFunc = GlobalEnv -> Env -> [Val] -> IO(GlobalEnv, [Val])
+
+
 
 data GlobalEnv = GlobalEnv { vars :: Map String Val, collator :: Collator }
 

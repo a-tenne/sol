@@ -5,11 +5,11 @@ import System.IO.Silently(capture)
 import Runtime.Types
 import Data.List (intercalate)
 
-g = initialEnv
 l = EnvEmpty
 
 print1 :: Test
 print1 = TestCase $ do
+  g <- initialEnv
   (output, _) <- capture $ luaPrint g l input
   assertEqual ("Print outputs " ++ show expected) expected output
     where
@@ -17,6 +17,7 @@ print1 = TestCase $ do
       expected = intercalate "\t" (map show input) ++ "\n"
 print2 :: Test
 print2 = TestCase $ do
+  g <- initialEnv
   (output, _) <- capture $ luaPrint g l input
   assertEqual ("Print outputs " ++ show expected ++ " with void as first parameter") expected output
     where
@@ -25,6 +26,7 @@ print2 = TestCase $ do
 
 print3 :: Test
 print3 = TestCase $ do
+  g <- initialEnv
   (output, _) <- capture $ luaPrint g l input
   assertEqual "Print outputs nothing" expected output
     where
@@ -32,6 +34,7 @@ print3 = TestCase $ do
       expected = "\n"
 print4 :: Test
 print4 = TestCase $ do
+  g <- initialEnv
   (output, _) <- capture $ luaPrint g l input
   assertEqual ("Print outputs " ++ show expected) expected output
     where
@@ -39,6 +42,7 @@ print4 = TestCase $ do
       expected = "1\t2\t3\n"
 print5 :: Test
 print5 = TestCase $ do
+  g <- initialEnv
   (output, _) <- capture $ luaPrint g l input
   assertEqual ("Print outputs " ++ show expected) expected output
     where

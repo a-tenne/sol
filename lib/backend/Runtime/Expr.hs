@@ -14,6 +14,7 @@ import Runtime.Runtime
 import Runtime.Types
 import Text.Parsec (parse)
 import qualified Data.Map as M
+import Data.Unique (newUnique)
 
 valFromLiteral :: AST.Literal -> Val
 valFromLiteral (AST.StringLit x) = StringVal x
@@ -208,14 +209,14 @@ interpretPE' :: GlobalEnv -> Env -> [Val] -> AST.PrefixExpr' -> IO (GlobalEnv, E
 interpretPE' g l (v:_) (AST.TableIndex y ys) = do
   (g2,l2,v2:_) <- interpretE g l y
   case v of
-      (TableVal t) -> do
+      (TableVal _ t) -> do
         let val = tableLookup t v2
         interpretPE' g2 l2 [val] ys
       _ -> error $ "tried to index a non table value: " ++ show v
         
 interpretPE' g l (v:_) (AST.DotIndex y ys) = do
   case v of
-      (TableVal t) -> do
+      (TableVal _ t) -> do
         let val = tableLookup t (StringVal y)
         interpretPE' g l [val] ys
       _ -> error $ "tried to index a non table value: " ++ show v
@@ -231,20 +232,21 @@ interpretArgs :: GlobalEnv -> Env -> Val -> AST.Args -> IO (GlobalEnv, Env, [Val
 interpretArgs g l v (AST.ArgList el) = do
   (g2, l2, vl) <- interpretEL g l el
   (g3, vl2) <- case v of
-    (NatFuncVal func) -> func g2 (newLocalEnv $ Just l2) vl
+    (NatFuncVal _ func) -> func g2 (newLocalEnv $ Just l2) vl
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl2)
 interpretArgs g l v (AST.ArgString e) = do
   (g2, l2, vl) <- interpretE g l e
   (g3, vl2) <- case v of
-    (NatFuncVal func) -> func g2 (newLocalEnv $ Just l2) vl
+    (NatFuncVal _ func) -> func g2 (newLocalEnv $ Just l2) vl
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl2)
 interpretArgs g l v (AST.ArgTable (AST.TableConstructor fl)) = do
   (g2,l2,t) <- interpretFields g l fl
-  let tableVal = TableVal t
+  tName <- newUnique
+  let tableVal = TableVal tName t
   (g3, vl) <- case v of
-    (NatFuncVal func) -> func g2 (newLocalEnv $ Just l2) [tableVal]
+    (NatFuncVal _ func) -> func g2 (newLocalEnv $ Just l2) [tableVal]
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl)
 
@@ -296,7 +298,8 @@ interpretE g l AST.FALSE = return (g, l, [BoolVal False])
 interpretE _ _ AST.TRIPLE_DOT = undefined
 interpretE g l (AST.TableExpr (AST.TableConstructor fl)) = do
   (g2,l2,t) <- interpretFields g l fl
-  return (g2,l2,[TableVal t])
+  tName <- newUnique
+  return (g2,l2,[TableVal tName t])
 
 interpretE _ _ (AST.FunctionDef _) = undefined
 

@@ -11,7 +11,7 @@ import Text.Parsec (parse)
 import Parser.Parser
 import Text.Parsec.Token (GenTokenParser(reserved))
 
-g = initialEnv
+
 l = EnvEmpty
 
 coerce1 :: Test
@@ -34,16 +34,19 @@ arithFns = [((+), "addition"), ((-), "subtraction"), ((*), "multiplication"), ((
 
 arithTemplate :: Val -> Val -> Test
 arithTemplate (NumVal a) (NumVal b) = TestList $ map (\(x, y) -> TestCase $ do
+  g <- initialEnv
   (_,_, res) <- arith x g l  (NumVal a) (NumVal b)
   assertEqual ("Evaluates " ++ y ++ " between " ++ show a ++ " and " ++ show b) (NumVal $ x a b) res ) arithFns
 
 arithTemplate (StringVal a) (StringVal b) = TestList $ map (\(x, y) -> TestCase $ do
+  g <- initialEnv
   (_,_,res) <- arith x g l (NumVal a2) (NumVal b2)
   assertEqual ("Evaluates " ++ y ++ " between " ++ show a ++ " and " ++ show b) (NumVal $ x a2 b2) res) arithFns
   where
     (NumVal a2) = coerce a
     (NumVal b2) = coerce b
 arithTemplate (NumVal a) (StringVal b) = TestList $ map (\(x, y) -> TestCase $ do
+  g <- initialEnv
   (_,_,res) <- arith x g l (NumVal a) (NumVal b2)
   assertEqual ("Evaluates " ++ y ++ " between " ++ show a ++ " and " ++ show b) (NumVal $ x a b2) res) arithFns
   where
@@ -53,6 +56,7 @@ arithTemplate a b = TestList $ map (\(x, y) -> crashTemplate (arith x) y a b) ar
 
 crashTemplate :: BinFn -> String -> Val -> Val -> Test
 crashTemplate fn name a b = TestCase $ do
+  g <- initialEnv
   result <- try (fn g l a b) :: IO (Either SomeException (GlobalEnv, Env, Val))
   case result of
     Left _ -> return ()
@@ -75,6 +79,7 @@ arith6 = arithTemplate NilVal (NumVal 2000.75)
 
 arith7 :: Test
 arith7 = TestCase $ do
+  g <- initialEnv
   (_, _, NumVal result) <- arith (/) g l (NumVal 0) (NumVal 0)
   assertEqual "Evaluates division between 0 and 0" True (isNaN result)
 
@@ -83,6 +88,7 @@ arithTests = TestList [arith1, arith2, arith3, arith4, arith5, arith6, arith7]
 
 intDiv1 :: Test
 intDiv1 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- intDiv g l a b
   assertEqual ("Evaluates integer division between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -94,6 +100,7 @@ intDiv1 = TestCase $ do
 
 intDiv2 :: Test
 intDiv2 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- intDiv g l a b
   assertEqual ("Evaluates integer division between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -105,6 +112,7 @@ intDiv2 = TestCase $ do
 
 intDiv3 :: Test
 intDiv3 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- intDiv g l a b
   assertEqual ("Evaluates integer division between string " ++ show a ++ " and " ++ show b) expected res
   where
@@ -116,6 +124,7 @@ intDiv3 = TestCase $ do
 
 intDiv4 :: Test
 intDiv4 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- intDiv g l a b
   assertEqual ("Evaluates integer division between string " ++ show a ++ " and string " ++ show b) expected res
   where
@@ -139,6 +148,7 @@ intDivTests = TestList [intDiv1, intDiv2, intDiv3, intDiv4, intDiv5, intDiv6, in
 
 concat1 :: Test
 concat1 = TestCase $ do
+  g <- initialEnv
   (_,_,res ) <- valConcat g l a b
   assertEqual ("String concatenation between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -149,6 +159,7 @@ concat1 = TestCase $ do
     b = NumVal y
 concat2 :: Test
 concat2 = TestCase $ do
+  g <- initialEnv
   (_,_,res ) <- valConcat g l a b
   assertEqual ("String concatenation between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -169,6 +180,7 @@ concatTests = TestList [concat1, concat2, concat3, concat4]
 
 andTest1 :: Test
 andTest1 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valAnd g l a b
   assertEqual ("Evaluates and between " ++ show a ++ ", " ++ show b) expected res
   where
@@ -177,6 +189,7 @@ andTest1 = TestCase $ do
     expected = b
 andTest2 :: Test
 andTest2 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valAnd g l a b
   assertEqual ("Evaluates and between " ++ show a ++ ", " ++ show b) expected res
   where
@@ -185,6 +198,7 @@ andTest2 = TestCase $ do
     expected = a
 andTest3 :: Test
 andTest3 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valAnd g l a b
   assertEqual ("Evaluates and between " ++ show a ++ ", " ++ show b) expected res
   where
@@ -197,6 +211,7 @@ andTests = TestList [andTest1, andTest2, andTest3]
 
 orTest1 :: Test
 orTest1 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valOr g l a b
   assertEqual ("Evaluates or between " ++ show a ++ ", " ++ show b) expected res
   where
@@ -205,6 +220,7 @@ orTest1 = TestCase $ do
     expected = a
 orTest2 :: Test
 orTest2 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valOr g l a b
   assertEqual ("Evaluates or between " ++ show a ++ ", " ++ show b) expected res
   where
@@ -213,6 +229,7 @@ orTest2 = TestCase $ do
     expected = b
 orTest3 :: Test
 orTest3 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valOr g l a b
   assertEqual ("Evaluates or between " ++ show a ++ ", " ++ show b) expected res
   where
@@ -225,6 +242,7 @@ orTests = TestList [orTest1, orTest2, orTest3]
 
 eqTest1 :: Test
 eqTest1 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valEq g l a b
   assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -234,6 +252,7 @@ eqTest1 = TestCase $ do
 
 eqTest2 :: Test
 eqTest2 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valEq g l a b
   assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -244,6 +263,7 @@ eqTest2 = TestCase $ do
 
 eqTest3 :: Test
 eqTest3 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valEq g l a b
   assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -252,6 +272,7 @@ eqTest3 = TestCase $ do
     b = StringVal "str"
 eqTest4 :: Test
 eqTest4 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valEq g l a b
   assertEqual ("Evaluates equality between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -263,6 +284,7 @@ eqTests :: Test
 eqTests = TestList [eqTest1, eqTest2, eqTest3, eqTest4]
 neqTest1 :: Test
 neqTest1 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valNe g l a b
   assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -272,6 +294,7 @@ neqTest1 = TestCase $ do
 
 neqTest2 :: Test
 neqTest2 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valNe g l a b
   assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -282,6 +305,7 @@ neqTest2 = TestCase $ do
 
 neqTest3 :: Test
 neqTest3 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valNe g l a b
   assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -290,6 +314,7 @@ neqTest3 = TestCase $ do
     b = StringVal "str"
 neqTest4 :: Test
 neqTest4 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valNe g l a b
   assertEqual ("Evaluates inequality between " ++ show a ++ " and " ++ show b) expected res
   where
@@ -302,6 +327,7 @@ neqTests = TestList [neqTest1, neqTest2, neqTest3, neqTest4]
 
 gt1 :: Test
 gt1 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valGt g l a b
   assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected res
   where
@@ -311,6 +337,7 @@ gt1 = TestCase $ do
     b = StringVal "abb"
 gt2 :: Test
 gt2 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valGt g l a b
   assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected res
   where
@@ -334,6 +361,7 @@ gtTests :: Test
 gtTests = TestList [gt1, gt2, gt3, gt4]
 lt1 :: Test
 lt1 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valLt g l a b
   assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected res
   where
@@ -343,6 +371,7 @@ lt1 = TestCase $ do
     b = StringVal "abb"
 lt2 :: Test
 lt2 = TestCase $ do
+  g <- initialEnv
   (_,_,res) <- valLt g l a b
   assertEqual ("Evaluates " ++ show a ++ " " ++ operation ++ " " ++ show b) expected res
   where
@@ -390,6 +419,7 @@ rshiftTests = TestList []
 
 interpretE1 :: Test
 interpretE1 = TestCase $ do
+  g <- initialEnv
   (_,_, res) <- interpretE g l tree
   assertEqual "Evaluates simple addition between numbers" [NumVal 6] res
   where
@@ -397,6 +427,7 @@ interpretE1 = TestCase $ do
 
 interpretE2 :: Test
 interpretE2 = TestCase $ do
+  g <- initialEnv
   (_,_, res) <- interpretE g l tree
   assertEqual "Evaluates simple addition and multiplication between numbers" [NumVal 7] res
   where
@@ -404,6 +435,7 @@ interpretE2 = TestCase $ do
 
 interpretE3 :: Test
 interpretE3 = TestCase $ do
+  g <- initialEnv
   (_,_, res) <- interpretE g l tree
   assertEqual ("Evaluates complex expression " ++ show ex) ([NumVal (-1)]) res
   where
