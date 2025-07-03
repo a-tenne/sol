@@ -4,8 +4,9 @@ import System.Exit (exitFailure, exitSuccess)
 import Test.HUnit
 import Expr (exprTests)
 import Runtime (runtimeTests)
+import Stat (statTests)
 
-tests = TestList [exprTests, runtimeTests]
+tests = TestList [exprTests, runtimeTests, statTests]
 
 main :: IO ()
 main = do

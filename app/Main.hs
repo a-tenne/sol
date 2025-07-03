@@ -7,6 +7,7 @@ import System.Exit (exitFailure)
 import Parser.Parser(program)
 import Text.Parsec (parse)
 import Data.Char (isSpace)
+import Runtime.Stat (interpret)
 
 trim :: String -> String
 trim = f . f
@@ -26,5 +27,4 @@ main = do
       ast <- case parse program "Syntax error" (trim file) of
         Left err ->  hPrint stderr err >> exitFailure
         Right ast -> return ast
-      -- print ast
-      return ()
+      interpret ast

@@ -139,7 +139,7 @@ test-suite backend-test
                       containers,
                       silently
 
-  other-modules:      Expr, Runtime
+  other-modules:      Expr, Runtime, Stat
 
   hs-source-dirs:     test/backend
   default-language: GHC2021

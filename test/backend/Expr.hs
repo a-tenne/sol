@@ -391,21 +391,21 @@ rshiftTests = TestList []
 interpretE1 :: Test
 interpretE1 = TestCase $ do
   (_,_, res) <- interpretE g l tree
-  assertEqual "Evaluates simple addition between numbers" (NumVal 6) res
+  assertEqual "Evaluates simple addition between numbers" [NumVal 6] res
   where
     (Right tree) = parse ex1 "" "1+2+3"
 
 interpretE2 :: Test
 interpretE2 = TestCase $ do
   (_,_, res) <- interpretE g l tree
-  assertEqual "Evaluates simple addition and multiplication between numbers" (NumVal 7) res
+  assertEqual "Evaluates simple addition and multiplication between numbers" [NumVal 7] res
   where
     (Right tree) = parse ex1 "" "1+2*3"
 
 interpretE3 :: Test
 interpretE3 = TestCase $ do
   (_,_, res) <- interpretE g l tree
-  assertEqual ("Evaluates complex expression " ++ show ex) (NumVal (-1)) res
+  assertEqual ("Evaluates complex expression " ++ show ex) ([NumVal (-1)]) res
   where
     ex = "200000000 // -0x5.3p-2 ^ (0X5 + 80.623 * '0x12')"
     (Right tree) = parse ex1 "" ex
