@@ -63,9 +63,7 @@ instance Show Val where
   show (TableVal x _) = "table: " ++ show (hashUnique x)
   
 
-type NativeFunc = GlobalEnv -> Env -> [Val] -> IO(GlobalEnv, [Val])
-
-
+type NativeFunc = GlobalEnv -> Env -> [Val] -> IO(GlobalEnv, Env, [Val])
 
 data GlobalEnv = GlobalEnv { vars :: Map String Val, collator :: Collator }
 

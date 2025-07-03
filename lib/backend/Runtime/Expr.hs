@@ -231,22 +231,24 @@ interpretPE' g l v AST.PrefixEmpty = return (g, l, v)
 interpretArgs :: GlobalEnv -> Env -> Val -> AST.Args -> IO (GlobalEnv, Env, [Val])
 interpretArgs g l v (AST.ArgList el) = do
   (g2, l2, vl) <- interpretEL g l el
-  (g3, vl2) <- case v of
-    (NatFuncVal _ func) -> func g2 (newLocalEnv $ Just l2) vl
+  -- Need to substitute any void values for nil before calling, except for the last one
+  let cleanVals = formatVals vl
+  (g3,l3, vl2) <- case v of
+    (NatFuncVal _ func) -> func g2 l2 cleanVals
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl2)
 interpretArgs g l v (AST.ArgString e) = do
   (g2, l2, vl) <- interpretE g l e
-  (g3, vl2) <- case v of
-    (NatFuncVal _ func) -> func g2 (newLocalEnv $ Just l2) vl
+  (g3,l3, vl2) <- case v of
+    (NatFuncVal _ func) -> func g2 l2 vl
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl2)
 interpretArgs g l v (AST.ArgTable (AST.TableConstructor fl)) = do
   (g2,l2,t) <- interpretFields g l fl
   tName <- newUnique
   let tableVal = TableVal tName t
-  (g3, vl) <- case v of
-    (NatFuncVal _ func) -> func g2 (newLocalEnv $ Just l2) [tableVal]
+  (g3,l3, vl) <- case v of
+    (NatFuncVal _ func) -> func g2 l2 [tableVal]
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl)
 
@@ -295,7 +297,7 @@ interpretE g l (AST.PreExpr y) = interpretPE g l y
 interpretE g l AST.NIL = return (g, l, [NilVal])
 interpretE g l AST.TRUE = return (g, l, [BoolVal True])
 interpretE g l AST.FALSE = return (g, l, [BoolVal False])
-interpretE _ _ AST.TRIPLE_DOT = undefined
+interpretE g l AST.TRIPLE_DOT = return (g,l,getVarArgs l)
 interpretE g l (AST.TableExpr (AST.TableConstructor fl)) = do
   (g2,l2,t) <- interpretFields g l fl
   tName <- newUnique

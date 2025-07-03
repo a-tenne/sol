@@ -70,6 +70,7 @@ interpretS :: GlobalEnv -> Env -> Stat -> IO (GlobalEnv, Env, Maybe[Val])
 interpretS g l Semic = return (g, l, Nothing)
 -- Global assignment
 interpretS g l (Asgn (VarList vl) el) = undefined
+interpretS g l (Do b) = interpretB g l b
 interpretS g l (LocalAsgn (AttrNameList attrnL) mEl) = do
   let (nl, _) = unzip attrnL -- Note: attributes don't do anything yet
   (g2, l2, vl) <- case mEl of

@@ -71,6 +71,14 @@ insertVarLocal g (Env localVars varArgs parent) key value = case exists of
     existsLocally = M.lookup key localVars
     exists = lookupVar g (Env localVars varArgs parent) key
 
+insertVarArgs :: Env -> [Val] -> Env
+insertVarArgs EnvEmpty _ = error "Internal error: cannot have var args in global scope"
+insertVarArgs (Env localVars varArgs parent) newVars = Env localVars (varArgs ++ newVars) parent
+
+getVarArgs :: Env -> [Val]
+getVarArgs EnvEmpty = [VoidVal]
+getVarArgs (Env _ varArgs _) = varArgs
+
 insertVarCurrent :: GlobalEnv -> Env -> String -> Val -> (GlobalEnv, Env)
 insertVarCurrent g EnvEmpty key value = (insertVarGlobal g key value, EnvEmpty)
 insertVarCurrent g (Env localVars varArgs parent) key value = (g, Env (M.insert key value localVars) varArgs parent)
@@ -112,5 +120,5 @@ checkFnArgs fnName argsNeeded argsProvided isVarArg
 luaPrint :: NativeFunc
 luaPrint g l args = do
   checkFnArgs "print" 1 (length args) True
-  putStrLn $ intercalate "\t" $ map show (formatVals args)
-  return (g, [VoidVal])
+  putStrLn $ intercalate "\t" $ map show args
+  return (g,l, [VoidVal])
