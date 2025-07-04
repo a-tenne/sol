@@ -72,5 +72,5 @@ instance Show GlobalEnv where
 instance Eq GlobalEnv where
   x == y = vars x == vars y
 
-data Env = Env (Map String Val) [Val] Env | EnvEmpty
+data Env = Env (Map String Val) (Maybe [Val]) Env | EnvEmpty
   deriving (Eq, Show)

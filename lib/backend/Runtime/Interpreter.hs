@@ -337,7 +337,10 @@ interpretE g l (PreExpr y) = do
 interpretE g l NIL = return (g, l, [NilVal])
 interpretE g l TRUE = return (g, l, [BoolVal True])
 interpretE g l FALSE = return (g, l, [BoolVal False])
-interpretE g l TRIPLE_DOT = return (g, l, getVarArgs l)
+interpretE g l TRIPLE_DOT = do
+  case getVarArgs l of
+    Just varArgs -> return (g, l, varArgs)
+    Nothing -> error "tried to use varargs inside a non vararg function"
 interpretE g l (TableExpr (TableConstructor fl)) = do
   (g2, l2, t) <- interpretFields g l fl
   tName <- newUnique
@@ -604,7 +607,7 @@ interpretS _ _ Break = error "Internal error: a break should be handled in state
 interpretS _ _ (Label _) = error "Internal error: a label should be handled in statement list processing"
 interpretS _ _ (Goto _) = error "Internal error: a goto should be handled in statement list processing"
 
--- Regular for loop iteration.
+-- | Regular for loop iteration
 forIter :: GlobalEnv -> Env -> Name -> Val -> Val -> Block -> IO (GlobalEnv, Env, Maybe [Val])
 forIter g l n (NumVal end) (NumVal incr) b
   -- end condition
@@ -630,15 +633,15 @@ forIter g l n (NumVal end) (NumVal incr) b
     -- Note that we can use getVal here, because we know it exists within the environment.
     (NumVal current) = getVar g l n
 
+-- | Template for creating a lua function at runtime
 luaFunc :: FuncBody -> LuaFunc
 luaFunc (FuncBody (ParamList (NameList nl) varArg) b) g l vl = do
   let paramLen = length nl
-  let isVarArg = case varArg of
-        Just _ -> True
-        Nothing -> False
   let funcEnv = newLocalEnv (Just l)
   let (g2, funcEnv2) = insertVarsCurrent g funcEnv nl (take paramLen vl)
-  let funcEnv3 = insertVarArgs funcEnv2 $ drop (length vl - paramLen) vl
+  let funcEnv3 = case varArg of
+        Just _ -> insertVarArgs funcEnv2 $ drop paramLen vl
+        Nothing -> funcEnv2
   (g3, funcEnv4, retvals) <- interpretB g2 funcEnv3 b
   let finalVL = fromMaybe [VoidVal] retvals
   let l2 = fromMaybe EnvEmpty $ getParent funcEnv4

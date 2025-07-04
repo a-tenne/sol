@@ -1,9 +1,11 @@
+-- | Abstract Syntax Tree module for the Sol Lua interpreter
 module AST where
 
 import Data.Int (Int64)
 import Data.List (intercalate)
 import Prelude hiding (EQ, GT, LT)
 
+-- | Binary operators in the language
 data BIN_OP = OR | AND | LE | GE | LT | GT | NE | EQ | B_OR | B_XOR | B_AND | LSHIFT | RSHIFT | CONCAT | PLUS | MINUS | MULT | DIV | INT_DIV | MOD | EXP
   deriving (Eq)
 
@@ -30,6 +32,7 @@ instance Show BIN_OP where
   show MOD = " % "
   show EXP = " ^ "
 
+-- | Unary operators in the language
 data U_OP = U_NOT | U_MINUS | U_LEN | U_B_NOT
   deriving (Eq)
 
@@ -39,6 +42,7 @@ instance Show U_OP where
   show U_LEN = "#"
   show U_B_NOT = "~"
 
+-- | Numeric literals (either integers or floating point)
 data Numeric = NumInt Int64 | NumDouble Double
   deriving (Eq)
 
@@ -46,6 +50,7 @@ instance Show Numeric where
   show (NumInt x) = show x
   show (NumDouble x) = show x
 
+-- | Literal values: numbers or strings
 data Literal = NumLit Numeric | StringLit String
   deriving (Eq)
 
@@ -53,6 +58,7 @@ instance Show Literal where
   show (NumLit x) = show x
   show (StringLit x) = show x
 
+-- | A field in a table constructor: key-value, named, or single value
 data Field = ExField Expr Expr | NamedField Name Expr | SingleExField Expr
   deriving (Eq)
 
@@ -61,6 +67,7 @@ instance Show Field where
   show (NamedField x y) = x ++ " = " ++ show y
   show (SingleExField x) = show x
 
+-- | A table constructor
 data TableConstructor where
   TableConstructor :: [Field] -> TableConstructor
   deriving (Eq)
@@ -68,8 +75,10 @@ data TableConstructor where
 instance Show TableConstructor where
   show (TableConstructor fields) = "{" ++ intercalate ", " (map show fields) ++ "}"
 
+-- | A variable name/identifier
 type Name = String
 
+-- | Function call arguments
 data Args = ArgList ExprList | ArgTable TableConstructor | ArgString Expr
   deriving (Eq)
 
@@ -78,6 +87,7 @@ instance Show Args where
   show (ArgTable x) = show x
   show (ArgString x) = show x
 
+-- | Represents a function call
 data FuncCall where
   FuncCall :: PrefixExpr -> FuncCall
   deriving (Eq)
@@ -85,6 +95,7 @@ data FuncCall where
 instance Show FuncCall where
   show (FuncCall x) = show x
 
+-- | The start of a prefix expression. Can either being with a name or a subexpression
 data PrefixExpr = PrefixName Name PrefixExpr' | PrefixSub Expr PrefixExpr'
   deriving (Eq)
 
@@ -92,6 +103,7 @@ instance Show PrefixExpr where
   show (PrefixName x y) = x ++ show y
   show (PrefixSub x y) = "(" ++ show x ++ ")" ++ show y
 
+-- | The suffix of a prefix expression, which can be a chain of table indexes and function calls
 data PrefixExpr' = TableIndex Expr PrefixExpr' | DotIndex Name PrefixExpr' | CallArgs Args PrefixExpr' | MethodArgs Name Args PrefixExpr' | PrefixEmpty
   deriving (Eq)
 
@@ -102,6 +114,7 @@ instance Show PrefixExpr' where
   show (CallArgs x y) = show x ++ show y
   show PrefixEmpty = ""
 
+-- | A variable (lvalue)
 data Var where
   Var :: PrefixExpr -> Var
   deriving (Eq)
@@ -109,6 +122,7 @@ data Var where
 instance Show Var where
   show (Var x) = show x
 
+-- | A list of variables
 data VarList where
   VarList :: [Var] -> VarList
   deriving (Eq)
@@ -116,6 +130,7 @@ data VarList where
 instance Show VarList where
   show (VarList x) = intercalate ", " (map show x)
 
+-- | The top-level chunk in a Lua script
 data Chunk where
   Chunk :: Block -> Chunk
   deriving (Eq)
@@ -123,6 +138,7 @@ data Chunk where
 instance Show Chunk where
   show (Chunk x) = show x
 
+-- | A block of statements and an optional return statement
 data Block = Block StatList (Maybe RetStat)
   deriving (Eq)
 
@@ -130,6 +146,7 @@ instance Show Block where
   show (Block l (Just r)) = (let stats = show l in if stats == "" then "" else stats ++ "\n") ++ show r
   show (Block l Nothing) = show l
 
+-- | A return statement
 data RetStat where
   RetStat :: ExprList -> RetStat
   deriving (Eq)
@@ -137,12 +154,14 @@ data RetStat where
 instance Show RetStat where
   show (RetStat (ExprList x)) = "return" ++ (if null x then "" else " ") ++ show (ExprList x)
 
+-- | An elseif clause in an if-statement
 data ElseIf = ElseIf Expr Block
   deriving (Eq)
 
 instance Show ElseIf where
   show (ElseIf x y) = "elseif " ++ show x ++ " then\n" ++ show y
 
+-- | List of elseif clauses
 data ElseIfList where
   ElseIfList :: [ElseIf] -> ElseIfList
   deriving (Eq)
@@ -150,6 +169,7 @@ data ElseIfList where
 instance Show ElseIfList where
   show (ElseIfList x) = intercalate "\n" (map show x)
 
+-- | Else clause for if-statements
 data Else where
   Else :: Block -> Else
   deriving (Eq)
@@ -157,6 +177,7 @@ data Else where
 instance Show Else where
   show (Else x) = "else\n" ++ show x
 
+-- | Fully qualified function name, with optional method part
 data FuncName = FuncName Name [Name] (Maybe Name)
   deriving (Eq)
 
@@ -164,6 +185,7 @@ instance Show FuncName where
   show (FuncName n1 nl (Just n2)) = n1 ++ concatMap ("." ++) nl ++ ':' : n2
   show (FuncName n1 nl Nothing) = n1 ++ concatMap ("." ++) nl
 
+-- | An attribute on a local name (e.g., `<const>`)
 data Attrib where
   Attrib :: Name -> Attrib
   deriving (Eq)
@@ -171,6 +193,7 @@ data Attrib where
 instance Show Attrib where
   show (Attrib n) = "<" ++ n ++ ">"
 
+-- | List of names with optional attributes
 data AttrNameList where
   AttrNameList :: [(Name, Maybe Attrib)] -> AttrNameList
   deriving (Eq)
@@ -178,6 +201,7 @@ data AttrNameList where
 instance Show AttrNameList where
   show (AttrNameList x) = intercalate ", " $ map (\(a, b) -> a ++ maybe "" show b) x
 
+-- | Statement types in the language
 data Stat = Semic | Asgn VarList ExprList | Label Name | Break | Goto Name | Do Block | WhileDo Expr Block | RepeatUntil Block Expr | FuncCallStat FuncCall | IfStat Expr Block ElseIfList (Maybe Else) | ForStat Name Expr Expr (Maybe Expr) Block | ForIn NameList ExprList Block | FuncDefStat FuncName FuncBody | LocalFuncStat Name FuncBody | LocalAsgn AttrNameList (Maybe ExprList)
   deriving (Eq)
 
@@ -201,6 +225,7 @@ instance Show Stat where
   show (LocalAsgn x (Just y)) = "local " ++ show x ++ " = " ++ show y
   show (LocalAsgn x Nothing) = "local " ++ show x
 
+-- | List of statements
 data StatList where
   StatList :: [Stat] -> StatList
   deriving (Eq)
@@ -208,9 +233,11 @@ data StatList where
 instance Show StatList where
   show (StatList x) = intercalate "\n" (map show x)
 
+-- | Represents the variadic argument
 data VarArg = VarArg
   deriving (Eq)
 
+-- | List of variable names
 data NameList where
   NameList :: [Name] -> NameList
   deriving (Eq)
@@ -218,6 +245,7 @@ data NameList where
 instance Show NameList where
   show (NameList x) = intercalate ", " x
 
+-- | Function parameter list, possibly variadic
 data ParamList = ParamList NameList (Maybe VarArg)
   deriving (Eq)
 
@@ -225,12 +253,14 @@ instance Show ParamList where
   show (ParamList x (Just _)) = "(" ++ show x ++ ", ...)\n"
   show (ParamList x Nothing) = "(" ++ show x ++ ")\n"
 
+-- | A function body with parameters and a block
 data FuncBody = FuncBody ParamList Block
   deriving (Eq)
 
 instance Show FuncBody where
   show (FuncBody x y) = show x ++ show y ++ "\nend"
 
+-- | Expressions in the language
 data Expr = BinExpr Expr BIN_OP Expr | UnaryExpr U_OP Expr | LiteralExpr Literal | PreExpr PrefixExpr | NIL | TRUE | FALSE | TRIPLE_DOT | TableExpr TableConstructor | FunctionDef FuncBody
   deriving (Eq)
 
@@ -246,6 +276,7 @@ instance Show Expr where
   show (TableExpr x) = show x
   show (FunctionDef x) = "function " ++ show x
 
+-- | List of expressions
 data ExprList where
   ExprList :: [Expr] -> ExprList
   deriving (Eq)
@@ -253,6 +284,7 @@ data ExprList where
 instance Show ExprList where
   show (ExprList x) = intercalate ", " (map show x)
 
+-- | Root of the AST
 data AST where
   AST :: Chunk -> AST
   deriving (Eq)

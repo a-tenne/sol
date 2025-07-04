@@ -3,7 +3,7 @@ module Expr where
 import AST (Literal (StringLit))
 import Control.Exception (SomeException, evaluate, try)
 import Data.Map qualified as M
-import Runtime.Expr
+import Runtime.Interpreter
 import Runtime.Runtime
 import Runtime.Types
 import Test.HUnit

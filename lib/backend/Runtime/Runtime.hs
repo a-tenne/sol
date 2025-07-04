@@ -85,8 +85,8 @@ getVar g l key = case resL of
     resL = lookupVarLocal l key
 
 newLocalEnv :: Maybe Env -> Env
-newLocalEnv Nothing = Env M.empty [] EnvEmpty
-newLocalEnv (Just parent) = Env M.empty [] parent
+newLocalEnv Nothing = Env M.empty Nothing EnvEmpty
+newLocalEnv (Just parent) = Env M.empty Nothing parent
 
 getParent :: Env -> Maybe Env
 getParent EnvEmpty = Nothing
@@ -105,10 +105,11 @@ insertVarLocal g (Env localVars varArgs parent) key value = case exists of
 
 insertVarArgs :: Env -> [Val] -> Env
 insertVarArgs EnvEmpty _ = error "Internal error: cannot have var args in global scope"
-insertVarArgs (Env localVars varArgs parent) newVars = Env localVars (varArgs ++ newVars) parent
+insertVarArgs (Env localVars Nothing parent) newVars = Env localVars (Just newVars) parent
+insertVarArgs (Env localVars (Just varArgs) parent) newVars = Env localVars (Just $ varArgs ++ newVars) parent
 
-getVarArgs :: Env -> [Val]
-getVarArgs EnvEmpty = [VoidVal]
+getVarArgs :: Env -> Maybe [Val]
+getVarArgs EnvEmpty = Nothing
 getVarArgs (Env _ varArgs _) = varArgs
 
 insertVarCurrent :: GlobalEnv -> Env -> String -> Val -> (GlobalEnv, Env)

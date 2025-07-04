@@ -4,7 +4,7 @@ import Runtime.Runtime
 import Runtime.Types
 import System.IO.Silently (capture)
 import Data.List (intercalate)
-import Runtime.Stat
+import Runtime.Interpreter
 import Text.Parsec (parse)
 import Parser.Parser (program)
 
