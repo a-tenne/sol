@@ -12,7 +12,7 @@ import Data.Unique
 data Table where
   Table :: (Map Val Val) -> Table
 
-data Val = StringVal String | NumVal Double | BoolVal Bool | NilVal | VoidVal | NatFuncVal Unique NativeFunc | TableVal Unique Table | LabelVal StatList
+data Val = StringVal String | NumVal Double | BoolVal Bool | NilVal | VoidVal | FuncVal Unique Int LuaFunc | TableVal Unique Table | LabelVal StatList
 
 constructorTag :: Val -> Int
 constructorTag (StringVal _) = 0
@@ -20,7 +20,7 @@ constructorTag (NumVal _) = 1
 constructorTag (BoolVal _) = 2
 constructorTag NilVal = 3
 constructorTag VoidVal = 4
-constructorTag (NatFuncVal {}) = 5
+constructorTag (FuncVal {}) = 5
 constructorTag (TableVal {}) = 6
 constructorTag (LabelVal _) = 7
 
@@ -36,7 +36,7 @@ compareSame (NumVal x) (NumVal y) = compare x y
 compareSame (BoolVal x) (BoolVal y) = compare x y
 compareSame NilVal NilVal = Prelude.EQ
 compareSame VoidVal VoidVal = Prelude.EQ
-compareSame (NatFuncVal x _) (NatFuncVal y _) = compare (hashUnique x) (hashUnique y)
+compareSame (FuncVal x _ _) (FuncVal y _ _) = compare (hashUnique x) (hashUnique y)
 compareSame (TableVal x _) (TableVal y _) = compare (hashUnique x) (hashUnique y)
 compareSame (LabelVal _) (LabelVal _) = Prelude.EQ
 compareSame _ _ = error "compareSame: mismatched constructors"
@@ -48,7 +48,7 @@ instance Eq Val where
   (BoolVal x) == (BoolVal y) = x == y
   NilVal == NilVal = True
   VoidVal == VoidVal = True
-  (NatFuncVal x _) == (NatFuncVal y _) = x == y
+  (FuncVal x _ _) == (FuncVal y _ _) = x == y
   (TableVal x _) == (TableVal y _) = x == y
   (LabelVal x) == (LabelVal y) = x == y
   _ == _ = False
@@ -58,12 +58,14 @@ instance Show Val where
   show (NumVal x) = if fromIntegral (round x) == x then show $ round x else show x
   show (BoolVal x) = map toLower $ show x
   show NilVal = "nil"
-  show VoidVal = error "attempt to show void value"
-  show (NatFuncVal x _) = "function: " ++ show (hashUnique x)
+  show VoidVal = error "internal error: attempt to show void value"
+  show (FuncVal x _ _) = "function: " ++ show (hashUnique x)
   show (TableVal x _) = "table: " ++ show (hashUnique x)
   
 
-type NativeFunc = GlobalEnv -> Env -> [Val] -> IO(GlobalEnv, Env, [Val])
+type LuaFunc = GlobalEnv -> Env -> [Val] -> IO(GlobalEnv, Env, [Val])
+
+
 
 data GlobalEnv = GlobalEnv { vars :: Map String Val, collator :: Collator }
 

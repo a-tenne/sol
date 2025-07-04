@@ -7,14 +7,14 @@ module Runtime.Expr where
 import qualified AST
 import Data.Bits
 import Data.Bits.Floating (FloatingBits (coerceToFloat), coerceToWord)
+import qualified Data.Map as M
 import Data.Text (pack)
 import Data.Text.ICU (Collator, collate)
+import Data.Unique (Unique, newUnique)
 import Parser.Parser (num)
 import Runtime.Runtime
 import Runtime.Types
 import Text.Parsec (parse)
-import qualified Data.Map as M
-import Data.Unique (newUnique, Unique)
 
 valFromLiteral :: AST.Literal -> Val
 valFromLiteral (AST.StringLit x) = StringVal x
@@ -183,7 +183,7 @@ valUMinus g l (StringVal x) = return (g, l, NumVal (-a))
 valUMinus _ _ x = error $ "tried to perform illegal operation -(" ++ show x ++ ")"
 
 valULen :: UnFn
-valULen g l (TableVal _ (Table m)) = return (g,l, NumVal $ fromIntegral $ length m)
+valULen g l (TableVal _ (Table m)) = return (g, l, NumVal $ fromIntegral $ length m)
 valULen _ _ x = error $ "tried to perform a length operation on a non table value: " ++ show x
 
 valUBNot :: UnFn
@@ -202,47 +202,46 @@ interpretPE :: GlobalEnv -> Env -> AST.PrefixExpr -> IO (GlobalEnv, Env, Maybe (
 interpretPE g l (AST.PrefixSub y ys) = do
   (g2, l2, vl) <- interpretE g l y
   case vl of
-      ((TableVal u _):_) -> interpretPE' g2  l2 (Just (u, [])) vl ys
-      _ -> interpretPE' g2 l2 Nothing vl ys
+    ((TableVal u _) : _) -> interpretPE' g2 l2 (Just (u, [])) vl ys
+    _ -> interpretPE' g2 l2 Nothing vl ys
 
 -- Gets the variable assigned to the name expression or nil. If it's a table, passes down the table identifier to the next function
 interpretPE g l (AST.PrefixName y ys) = do
   let v = getVar g l y
   case v of
-      (TableVal u _) -> interpretPE' g l (Just (u, [])) [v] ys
-      _ -> interpretPE' g l Nothing [v] ys
+    (TableVal u _) -> interpretPE' g l (Just (u, [])) [v] ys
+    _ -> interpretPE' g l Nothing [v] ys
 
-interpretPE' :: GlobalEnv -> Env -> Maybe (Unique, [Val]) -> [Val] -> AST.PrefixExpr' -> IO (GlobalEnv, Env, Maybe (Unique,[Val]), [Val])
+interpretPE' :: GlobalEnv -> Env -> Maybe (Unique, [Val]) -> [Val] -> AST.PrefixExpr' -> IO (GlobalEnv, Env, Maybe (Unique, [Val]), [Val])
 -- Indexes a table. Adds the value used to index the table into the value list, if this is a table access chain.
-interpretPE' g l uid (v:_) (AST.TableIndex y ys) = do
+interpretPE' g l uid (v : _) (AST.TableIndex y ys) = do
   case v of
-      (TableVal _ t) -> do
-        (g2,l2,v2:_) <- interpretE g l y
-        let val = tableLookup t v2
-        let newuid = case uid of
-              Just (u, ul) -> Just (u, ul ++ [v2])
-              Nothing -> error "internal error"
-        interpretPE' g2 l2 newuid [val] ys
-      _ -> error $ "tried to index a non table value: " ++ show v
+    (TableVal _ t) -> do
+      (g2, l2, v2 : _) <- interpretE g l y
+      let val = tableLookup t v2
+      let newuid = case uid of
+            Just (u, ul) -> Just (u, ul ++ [v2])
+            Nothing -> error "internal error"
+      interpretPE' g2 l2 newuid [val] ys
+    _ -> error $ "tried to index a non table value: " ++ show v
 
 -- Indexes a table. Adds the string value used to index the table into the value list, if this is a table access chain.
-interpretPE' g l uid (v:_) (AST.DotIndex y ys) = do
+interpretPE' g l uid (v : _) (AST.DotIndex y ys) = do
   case v of
-      (TableVal _ t) -> do
-        let val = tableLookup t (StringVal y)
-        let newuid = case uid of
-              Just (u, ul) -> Just (u, ul ++ [StringVal y])
-              Nothing -> error "internal error"
-        interpretPE' g l newuid [val] ys
-      _ -> error $ "tried to index a non table value: " ++ show v
+    (TableVal _ t) -> do
+      let val = tableLookup t (StringVal y)
+      let newuid = case uid of
+            Just (u, ul) -> Just (u, ul ++ [StringVal y])
+            Nothing -> error "internal error"
+      interpretPE' g l newuid [val] ys
+    _ -> error $ "tried to index a non table value: " ++ show v
 
 -- Uid is irrelevant now, since we're calling a function.
-interpretPE' g l _ (v:_) (AST.CallArgs y ys) = do
-  (g2, l2, v2:vl2) <- interpretArgs g l v y
+interpretPE' g l _ (v : _) (AST.CallArgs y ys) = do
+  (g2, l2, v2 : vl2) <- interpretArgs g l v y
   case v2 of
-      (TableVal u _) -> interpretPE' g l (Just (u, [])) (v2:vl2) ys
-      _ -> interpretPE' g2 l2 Nothing (v2:vl2) ys
-  
+    (TableVal u _) -> interpretPE' g l (Just (u, [])) (v2 : vl2) ys
+    _ -> interpretPE' g2 l2 Nothing (v2 : vl2) ys
 interpretPE' _ _ _ _ (AST.MethodArgs {}) = undefined
 interpretPE' g l uid vl AST.PrefixEmpty = return (g, l, uid, vl)
 
@@ -251,53 +250,53 @@ interpretArgs :: GlobalEnv -> Env -> Val -> AST.Args -> IO (GlobalEnv, Env, [Val
 interpretArgs g l v (AST.ArgList el) = do
   (g2, l2, vl) <- interpretEL g l el
   -- Need to substitute any void values for nil before calling, except for the last one
-  let formattedVals = formatVals vl
-  (g3,l3, vl2) <- case v of
-    (NatFuncVal _ func) -> func g2 l2 formattedVals
+  (g3, l3, vl2) <- case v of
+    (FuncVal _ numArgs func) -> do
+      let lenDiff = numArgs - length vl
+      let formattedVals = cleanVals vl ++ replicate lenDiff NilVal
+      func g2 l2 formattedVals
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl2)
 interpretArgs g l v (AST.ArgString e) = do
   (g2, l2, vl) <- interpretE g l e
-  (g3,l3, vl2) <- case v of
-    (NatFuncVal _ func) -> func g2 l2 vl
+  (g3, l3, vl2) <- case v of
+    (FuncVal _ numArgs func) -> func g2 l2 vl
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl2)
 interpretArgs g l v (AST.ArgTable (AST.TableConstructor fl)) = do
-  (g2,l2,t) <- interpretFields g l fl
+  (g2, l2, t) <- interpretFields g l fl
   tName <- newUnique
   let tableVal = TableVal tName t
-  (g3,l3, vl) <- case v of
-    (NatFuncVal _ func) -> func g2 l2 [tableVal]
+  (g3, l3, vl) <- case v of
+    (FuncVal _ numArgs func) -> func g2 l2 [tableVal]
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl)
 
-
-interpretFieldsHelper :: GlobalEnv -> Env -> Table -> [AST.Field] -> IO(GlobalEnv, Env, Table)
-interpretFieldsHelper g l t [] = return (g,l,t)
-interpretFieldsHelper g l (Table m) (x:xs) = do
+interpretFieldsHelper :: GlobalEnv -> Env -> Table -> [AST.Field] -> IO (GlobalEnv, Env, Table)
+interpretFieldsHelper g l t [] = return (g, l, t)
+interpretFieldsHelper g l (Table m) (x : xs) = do
   case x of
-      (AST.ExField e1 e2) -> do
-        (g2,l2,v1:_) <- interpretE g l e1
-        (g3,l3,v2:_) <- interpretE g2 l2 e2
-        interpretFieldsHelper g3 l3 (Table (M.insert v1 v2 m)) xs
-      (AST.NamedField n e) -> do
-        (g2,l2,v:_) <- interpretE g l e
-        interpretFieldsHelper g2 l2 (Table (M.insert (StringVal n) v m)) xs
-      (AST.SingleExField e) -> do
-        let nextFree = getNextFreeIndex (Table m) 1
-        (g2,l2,v:_) <- interpretE g l e
-        interpretFieldsHelper g2 l2 (Table (M.insert (NumVal $ fromIntegral nextFree) v m)) xs
-      where
-        getNextFreeIndex :: Table -> Int -> Int
-        getNextFreeIndex (Table m) i = case M.lookup (NumVal $ fromIntegral i) m of
-            Just _ -> getNextFreeIndex (Table m) (i+1)
-            Nothing -> i
+    (AST.ExField e1 e2) -> do
+      (g2, l2, v1 : _) <- interpretE g l e1
+      (g3, l3, v2 : _) <- interpretE g2 l2 e2
+      interpretFieldsHelper g3 l3 (Table (M.insert v1 v2 m)) xs
+    (AST.NamedField n e) -> do
+      (g2, l2, v : _) <- interpretE g l e
+      interpretFieldsHelper g2 l2 (Table (M.insert (StringVal n) v m)) xs
+    (AST.SingleExField e) -> do
+      let nextFree = getNextFreeIndex (Table m) 1
+      (g2, l2, v : _) <- interpretE g l e
+      interpretFieldsHelper g2 l2 (Table (M.insert (NumVal $ fromIntegral nextFree) v m)) xs
+  where
+    getNextFreeIndex :: Table -> Int -> Int
+    getNextFreeIndex (Table m) i = case M.lookup (NumVal $ fromIntegral i) m of
+      Just _ -> getNextFreeIndex (Table m) (i + 1)
+      Nothing -> i
 
-interpretFields :: GlobalEnv -> Env -> [AST.Field] -> IO(GlobalEnv, Env, Table)
+interpretFields :: GlobalEnv -> Env -> [AST.Field] -> IO (GlobalEnv, Env, Table)
 interpretFields g l fl = do
   let t = Table M.empty
   interpretFieldsHelper g l t fl
-
 
 interpretE :: GlobalEnv -> Env -> AST.Expr -> IO (GlobalEnv, Env, [Val])
 interpretE g l (AST.BinExpr a op b) = do
@@ -313,17 +312,16 @@ interpretE g l (AST.UnaryExpr op y) = do
   return (g3, l3, [v])
 interpretE g l (AST.LiteralExpr y) = return (g, l, [valFromLiteral y])
 interpretE g l (AST.PreExpr y) = do
-  (g2,l2, _, vl) <- interpretPE g l y
-  return (g2,l2,vl)
+  (g2, l2, _, vl) <- interpretPE g l y
+  return (g2, l2, vl)
 interpretE g l AST.NIL = return (g, l, [NilVal])
 interpretE g l AST.TRUE = return (g, l, [BoolVal True])
 interpretE g l AST.FALSE = return (g, l, [BoolVal False])
-interpretE g l AST.TRIPLE_DOT = return (g,l,getVarArgs l)
+interpretE g l AST.TRIPLE_DOT = return (g, l, getVarArgs l)
 interpretE g l (AST.TableExpr (AST.TableConstructor fl)) = do
-  (g2,l2,t) <- interpretFields g l fl
+  (g2, l2, t) <- interpretFields g l fl
   tName <- newUnique
-  return (g2,l2,[TableVal tName t])
-
+  return (g2, l2, [TableVal tName t])
 interpretE _ _ (AST.FunctionDef _) = undefined
 
 interpretEL :: GlobalEnv -> Env -> AST.ExprList -> IO (GlobalEnv, Env, [Val])

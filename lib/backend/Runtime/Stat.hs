@@ -6,7 +6,8 @@ import Runtime.Expr
 import Runtime.Runtime
 import Runtime.Types
 import Data.Bits (Bits(xor))
-import Data.Unique (Unique)
+import Data.Unique (Unique, newUnique)
+import Data.Maybe (fromMaybe)
 
 interpret :: AST -> IO ()
 interpret (AST ch) = interpretCh ch
@@ -37,7 +38,7 @@ interpretB g l (Block sl rs) = do
 interpretSL :: GlobalEnv -> Env -> StatList -> IO (GlobalEnv, Env, Maybe [Val])
 interpretSL g l (AST.StatList []) = return (g, l, Nothing)
 -- Returns VoidVal so the stack unwinds.
-interpretSL g l (AST.StatList (Break:_)) = return (g,l,Just[VoidVal])
+interpretSL g l (AST.StatList (Break:_)) = return (g,l,Just [VoidVal])
 -- Discards the rest of the SL, SL in label becomes new SL
 interpretSL g l (AST.StatList ((Goto n):_)) = do
   let v = lookupVar g l n
@@ -75,7 +76,6 @@ interpretS g l (Asgn (VarList varl) el) = do
   -- In case there's void values here, turn them into nil
   let cleanVl = cleanVals vl
   (g3,l3,finalVarL) <- processVarL g2 l2 varl
-  print cleanVl
   let (g4,l4) = updateValues g3 l3 finalVarL cleanVl
   return (g4,l4,Nothing)
   where
@@ -170,14 +170,22 @@ interpretS g l (RepeatUntil b e) = do
       Just _ -> return (g2,l2,ret)
       Nothing -> do
         (g3,l3, v:_) <- interpretE g2 l2 e
-        if valIsTrue v 
-          then return(g,l,Nothing)
+        if valIsTrue v
+          then return (g,l,Nothing)
           else interpretS g3 l3 (RepeatUntil b e)
 
 interpretS _ _ (IfStat {}) = undefined
 interpretS _ _ (ForIn {}) = undefined
 interpretS _ _ (FuncDefStat {}) = undefined
-interpretS _ _ (LocalFuncStat {}) = undefined
+interpretS g l (LocalFuncStat n fb) = do
+  let fn = luaFunc fb
+  let (FuncBody (ParamList (NameList nl)_)_) = fb
+  let numArgs = length nl
+  uniq <- newUnique
+  let (g2,l2) = insertVarCurrent g l n (FuncVal uniq numArgs fn) 
+  return (g2,l2,Nothing)
+
+
 interpretS _ _ Break = error "Internal error: a break should be handled in statement list processing"
 interpretS _ _ (Label _) = error "Internal error: a label should be handled in statement list processing"
 interpretS _ _ (Goto _) = error "Internal error: a goto should be handled in statement list processing"
@@ -206,3 +214,17 @@ forIter g l n (NumVal end) (NumVal incr) b
         -- Gets the current index from the local environment
         -- Note that we can use getVal here, because we know it exists within the environment.
         (NumVal current) = getVar g l n
+
+luaFunc :: FuncBody -> LuaFunc
+luaFunc (FuncBody (ParamList (NameList nl) varArg) b) g l vl = do
+  let paramLen = length nl
+  let isVarArg = case varArg of
+        Just _ -> True
+        Nothing -> False
+  let funcEnv = newLocalEnv (Just l)
+  let (g2, funcEnv2) = insertVarsCurrent g funcEnv nl (take paramLen vl)
+  let funcEnv3 = insertVarArgs funcEnv2 $ drop (length vl - paramLen) vl
+  (g3, funcEnv4, retvals) <- interpretB g2 funcEnv3 b
+  let finalVL = fromMaybe [VoidVal] retvals
+  let l2 = fromMaybe EnvEmpty $ getParent funcEnv4
+  return (g3, l2, finalVL)

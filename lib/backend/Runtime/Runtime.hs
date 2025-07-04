@@ -11,7 +11,7 @@ import GHC.IO.Handle.Internals (wantReadableHandle)
 initialEnvVars :: IO (M.Map String Val)
 initialEnvVars = do
   printName <- newUnique
-  return $ M.fromList [("print", NatFuncVal printName luaPrint)]
+  return $ M.fromList [("print", FuncVal printName 1 luaPrint)]
 
 initialEnv :: IO GlobalEnv
 initialEnv = do
@@ -146,16 +146,9 @@ cleanVals (x : xs)
   | x == VoidVal = NilVal : formatVals xs
   | otherwise = x : formatVals xs
 
-checkFnArgs :: String -> Int -> Int -> Bool -> IO ()
-checkFnArgs fnName argsNeeded argsProvided isVarArg
-  | not isVarArg && argsNeeded /= argsProvided = error $ "function " ++ fnName ++ " needs exactly " ++ show argsNeeded ++ singleOrPlural ++ show argsProvided ++ " were provided."
-  | isVarArg && argsNeeded > argsProvided = error $ "function " ++ fnName ++ " needs atleast " ++ show argsNeeded ++ singleOrPlural ++ show argsProvided ++ " were provided."
-  | otherwise = return ()
-  where
-    singleOrPlural = if argsNeeded == 1 then " argument, " else " arguments, "
 
-luaPrint :: NativeFunc
+luaPrint :: LuaFunc
 luaPrint g l args = do
-  checkFnArgs "print" 1 (length args) True
-  putStrLn $ intercalate "\t" $ map show args
+  let newArgs = formatVals args
+  putStrLn $ intercalate "\t" $ map show newArgs
   return (g,l, [VoidVal])
