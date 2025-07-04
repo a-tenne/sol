@@ -14,7 +14,7 @@ import Runtime.Runtime
 import Runtime.Types
 import Text.Parsec (parse)
 import qualified Data.Map as M
-import Data.Unique (newUnique)
+import Data.Unique (newUnique, Unique)
 
 valFromLiteral :: AST.Literal -> Val
 valFromLiteral (AST.StringLit x) = StringVal x
@@ -23,9 +23,8 @@ valFromLiteral (AST.NumLit (AST.NumInt x)) = NumVal $ fromIntegral x
 
 coerce :: String -> Val
 coerce str = case parse num "" str of
-  Left _ -> error $ "Error: attempt to coerce string " ++ show str ++ " to a number"
+  Left _ -> error $ "attempt to coerce string " ++ show str ++ " to a number"
   Right (AST.LiteralExpr x) -> valFromLiteral x
-  _ -> undefined
 
 type BinFn = GlobalEnv -> Env -> Val -> Val -> IO (GlobalEnv, Env, Val)
 
@@ -41,7 +40,7 @@ arith fn g l (StringVal x) (StringVal y) = return (g, l, NumVal $ fn a b)
   where
     (NumVal a) = coerce x
     (NumVal b) = coerce y
-arith _ _ _ _ _ = undefined
+arith _ _ _ x y = error $ "tried to perform illegal arithmetic operation between " ++ show x ++ " and " ++ show y
 
 intDiv :: BinFn
 intDiv g l (NumVal x) (NumVal y) = return (g, l, NumVal $ fromIntegral $ floor (x / y))
@@ -55,14 +54,14 @@ intDiv g l (StringVal x) (StringVal y) = return (g, l, NumVal $ fromIntegral $ f
   where
     (NumVal a) = coerce x
     (NumVal b) = coerce y
-intDiv _ _ _ _ = undefined
+intDiv _ _ x y = error $ "tried to perform illegal arithmetic operation between " ++ show x ++ " and " ++ show y
 
 valConcat :: BinFn
 valConcat g l (StringVal x) (StringVal y) = return (g, l, StringVal $ show (StringVal x) ++ show (StringVal y))
 valConcat g l (StringVal x) (NumVal y) = return (g, l, StringVal $ show (StringVal x) ++ show (NumVal y))
 valConcat g l (NumVal x) (StringVal y) = return (g, l, StringVal $ show (NumVal x) ++ show (StringVal y))
 valConcat g l (NumVal x) (NumVal y) = return (g, l, StringVal $ show (NumVal x) ++ show (NumVal y))
-valConcat _ _ _ _ = undefined
+valConcat _ _ x y = error $ "tried to perform illegal concatenation between " ++ show x ++ " and " ++ show y
 
 valAnd :: BinFn
 valAnd g l (BoolVal True) x = return (g, l, x)
@@ -84,11 +83,11 @@ valNe g l x y = return (g, l, BoolVal $ x /= y)
 
 numComp :: (Double -> Double -> Bool) -> BinFn
 numComp fn g l (NumVal x) (NumVal y) = return (g, l, BoolVal $ fn x y)
-numComp _ _ _ _ _ = undefined
+numComp _ _ _ x y = error $ "tried to perform illegal comparison between " ++ show x ++ " and " ++ show y
 
 strOrd :: GlobalEnv -> Ordering -> Val -> Val -> Bool
 strOrd g ord (StringVal x) (StringVal y) = collate (collator g) (pack x) (pack y) == ord
-strOrd _ _ _ _ = undefined
+strOrd _ _ x y = error $ "tried to perform illegal comparison between " ++ show x ++ " and " ++ show y
 
 valGt :: BinFn
 valGt g l (StringVal x) (StringVal y) = return (g, l, BoolVal $ strOrd g GT (StringVal x) (StringVal y))
@@ -118,27 +117,27 @@ valMod g l (StringVal x) (StringVal y) = return (g, l, NumVal $ fromIntegral $ f
   where
     (NumVal a) = coerce x
     (NumVal b) = coerce y
-valMod _ _ _ _ = undefined
+valMod _ _ x y = error $ "tried to perform illegal arithmetic operation between " ++ show x ++ " and " ++ show y
 
 valBAnd :: BinFn
 valBAnd g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x .&. coerceToWord y)
-valBAnd _ _ _ _ = undefined
+valBAnd _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
 valBOr :: BinFn
 valBOr g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x .|. coerceToWord y)
-valBOr _ _ _ _ = undefined
+valBOr _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
 valBXor :: BinFn
 valBXor g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x `xor` coerceToWord y)
-valBXor _ _ _ _ = undefined
+valBXor _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
 valLshift :: BinFn
 valLshift g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x `shiftL` floor y)
-valLshift _ _ _ _ = undefined
+valLshift _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
 valRshift :: BinFn
 valRshift g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x `shiftR` floor y)
-valRshift _ _ _ _ = undefined
+valRshift _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
 valIsTrue :: Val -> Bool
 valIsTrue (BoolVal False) = False
@@ -181,14 +180,15 @@ valUMinus g l (NumVal x) = return (g, l, NumVal (-x))
 valUMinus g l (StringVal x) = return (g, l, NumVal (-a))
   where
     (NumVal a) = coerce x
-valUMinus _ _ _ = undefined
+valUMinus _ _ x = error $ "tried to perform illegal operation -(" ++ show x ++ ")"
 
 valULen :: UnFn
-valULen = undefined -- NEEDS TABLES
+valULen g l (TableVal _ (Table m)) = return (g,l, NumVal $ fromIntegral $ length m)
+valULen _ _ x = error $ "tried to perform a length operation on a non table value: " ++ show x
 
 valUBNot :: UnFn
 valUBNot g l (NumVal x) = return (g, l, NumVal $ fromIntegral $ complement $ coerceToWord x)
-valUBNot _ _ _ = undefined
+valUBNot _ _ x = error $ "tried to perform illegal operation ~(" ++ show x ++ ")"
 
 unOpToFn :: AST.U_OP -> UnFn
 unOpToFn op = case op of
@@ -197,44 +197,63 @@ unOpToFn op = case op of
   AST.U_LEN -> valULen
   AST.U_B_NOT -> valUBNot
 
-interpretPE :: GlobalEnv -> Env -> AST.PrefixExpr -> IO (GlobalEnv, Env, [Val])
+interpretPE :: GlobalEnv -> Env -> AST.PrefixExpr -> IO (GlobalEnv, Env, Maybe (Unique, [Val]), [Val])
+-- Evaluates the subexpression. If it's a table, passes down the table identifier to the next function
 interpretPE g l (AST.PrefixSub y ys) = do
   (g2, l2, vl) <- interpretE g l y
-  interpretPE' g2 l2 vl ys
+  case vl of
+      ((TableVal u _):_) -> interpretPE' g2  l2 (Just (u, [])) vl ys
+      _ -> interpretPE' g2 l2 Nothing vl ys
+
+-- Gets the variable assigned to the name expression or nil. If it's a table, passes down the table identifier to the next function
 interpretPE g l (AST.PrefixName y ys) = do
   let v = getVar g l y
-  interpretPE' g l [v] ys
+  case v of
+      (TableVal u _) -> interpretPE' g l (Just (u, [])) [v] ys
+      _ -> interpretPE' g l Nothing [v] ys
 
-interpretPE' :: GlobalEnv -> Env -> [Val] -> AST.PrefixExpr' -> IO (GlobalEnv, Env, [Val])
-interpretPE' g l (v:_) (AST.TableIndex y ys) = do
-  (g2,l2,v2:_) <- interpretE g l y
+interpretPE' :: GlobalEnv -> Env -> Maybe (Unique, [Val]) -> [Val] -> AST.PrefixExpr' -> IO (GlobalEnv, Env, Maybe (Unique,[Val]), [Val])
+-- Indexes a table. Adds the value used to index the table into the value list, if this is a table access chain.
+interpretPE' g l uid (v:_) (AST.TableIndex y ys) = do
   case v of
       (TableVal _ t) -> do
+        (g2,l2,v2:_) <- interpretE g l y
         let val = tableLookup t v2
-        interpretPE' g2 l2 [val] ys
+        let newuid = case uid of
+              Just (u, ul) -> Just (u, ul ++ [v2])
+              Nothing -> error "internal error"
+        interpretPE' g2 l2 newuid [val] ys
       _ -> error $ "tried to index a non table value: " ++ show v
-        
-interpretPE' g l (v:_) (AST.DotIndex y ys) = do
+
+-- Indexes a table. Adds the string value used to index the table into the value list, if this is a table access chain.
+interpretPE' g l uid (v:_) (AST.DotIndex y ys) = do
   case v of
       (TableVal _ t) -> do
         let val = tableLookup t (StringVal y)
-        interpretPE' g l [val] ys
+        let newuid = case uid of
+              Just (u, ul) -> Just (u, ul ++ [StringVal y])
+              Nothing -> error "internal error"
+        interpretPE' g l newuid [val] ys
       _ -> error $ "tried to index a non table value: " ++ show v
+
+-- Uid is irrelevant now, since we're calling a function.
+interpretPE' g l _ (v:_) (AST.CallArgs y ys) = do
+  (g2, l2, v2:vl2) <- interpretArgs g l v y
+  case v2 of
+      (TableVal u _) -> interpretPE' g l (Just (u, [])) (v2:vl2) ys
+      _ -> interpretPE' g2 l2 Nothing (v2:vl2) ys
   
-interpretPE' g l (v:_) (AST.CallArgs y ys) = do
-  (g2, l2, vl2) <- interpretArgs g l v y
-  interpretPE' g2 l2 vl2 ys
-interpretPE' _ _ _ (AST.MethodArgs {}) = undefined
-interpretPE' g l v AST.PrefixEmpty = return (g, l, v)
+interpretPE' _ _ _ _ (AST.MethodArgs {}) = undefined
+interpretPE' g l uid vl AST.PrefixEmpty = return (g, l, uid, vl)
 
 -- Check if input value is a function. If it is, create a new environment
 interpretArgs :: GlobalEnv -> Env -> Val -> AST.Args -> IO (GlobalEnv, Env, [Val])
 interpretArgs g l v (AST.ArgList el) = do
   (g2, l2, vl) <- interpretEL g l el
   -- Need to substitute any void values for nil before calling, except for the last one
-  let cleanVals = formatVals vl
+  let formattedVals = formatVals vl
   (g3,l3, vl2) <- case v of
-    (NatFuncVal _ func) -> func g2 l2 cleanVals
+    (NatFuncVal _ func) -> func g2 l2 formattedVals
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl2)
 interpretArgs g l v (AST.ArgString e) = do
@@ -293,7 +312,9 @@ interpretE g l (AST.UnaryExpr op y) = do
   (g3, l3, v) <- fn g2 l2 b
   return (g3, l3, [v])
 interpretE g l (AST.LiteralExpr y) = return (g, l, [valFromLiteral y])
-interpretE g l (AST.PreExpr y) = interpretPE g l y
+interpretE g l (AST.PreExpr y) = do
+  (g2,l2, _, vl) <- interpretPE g l y
+  return (g2,l2,vl)
 interpretE g l AST.NIL = return (g, l, [NilVal])
 interpretE g l AST.TRUE = return (g, l, [BoolVal True])
 interpretE g l AST.FALSE = return (g, l, [BoolVal False])

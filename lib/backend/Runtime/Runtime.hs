@@ -1,11 +1,12 @@
 module Runtime.Runtime where
 
-import Data.List (intercalate)
+import Data.List (intercalate, find)
 import qualified Data.Map as M
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import qualified Data.Text.ICU as ICU
 import Runtime.Types
-import Data.Unique (newUnique)
+import Data.Unique (newUnique, Unique)
+import GHC.IO.Handle.Internals (wantReadableHandle)
 
 initialEnvVars :: IO (M.Map String Val)
 initialEnvVars = do
@@ -43,6 +44,37 @@ lookupVar g l key = case resL of
   where
     resG = lookupVarGlobal g key
     resL = lookupVarLocal l key
+
+predicate ::  Unique ->  Val -> Bool
+predicate uniq (TableVal u _) = u == uniq
+predicate _ _ = False
+
+nameFromUnique :: GlobalEnv -> Env -> Unique -> Maybe String
+nameFromUnique g EnvEmpty uniq = fst <$> find (predicate uniq . snd) (M.toList $ vars g)
+nameFromUnique g (Env varList _ parent) uniq = case fst <$> find (predicate uniq . snd) (M.toList varList) of
+    Nothing -> nameFromUnique g parent uniq
+    x -> x
+
+updateTableVal :: GlobalEnv -> Env -> (Unique, [Val]) -> Val -> (GlobalEnv, Env)
+updateTableVal g l (uniq, vl) newV = case nameFromUnique g l uniq of
+    Nothing -> (g,l)
+    -- Expects the value to be a table, mutates it and inserts it into the scope where it belongs
+    Just n -> case getVar g l n of
+        (TableVal u t) -> insertVarLocal g l n (TableVal u (mutateTableVal t vl newV))
+        _ -> error "internal error"
+    where
+      mutateTableVal :: Table -> [Val] -> Val -> Table
+      -- Base case: the list only has one index value left, so we update the table with it
+      mutateTableVal t [v] newV = tableInsert t v newV
+      -- We check if the key exists within the given table. If the key does not exist or is not a table
+      -- we throw an error. If it is, we insert the new, mutated table into that old spot.
+      -- since it calls itself recursively within the constructor, it updates the actual value we want
+      -- to update and all upper values
+      mutateTableVal (Table m) (v:vs) newV = case M.lookup v m of
+          Just (TableVal u t) -> tableInsert (Table m) v (TableVal u (mutateTableVal t vs newV))
+          _ -> error "internal error"
+      -- The value list can never be empty.
+      mutateTableVal _ [] _ = error "internal error"
 
 getVar :: GlobalEnv -> Env -> String -> Val
 getVar g l key = case resL of
@@ -106,6 +138,11 @@ formatVals :: [Val] -> [Val]
 formatVals [] = []
 formatVals (x : xs)
   | x == VoidVal && null xs = []
+  | x == VoidVal = NilVal : formatVals xs
+  | otherwise = x : formatVals xs
+cleanVals :: [Val] -> [Val]
+cleanVals [] = []
+cleanVals (x : xs)
   | x == VoidVal = NilVal : formatVals xs
   | otherwise = x : formatVals xs
 

@@ -6,6 +6,7 @@ import Runtime.Expr
 import Runtime.Runtime
 import Runtime.Types
 import Data.Bits (Bits(xor))
+import Data.Unique (Unique)
 
 interpret :: AST -> IO ()
 interpret (AST ch) = interpretCh ch
@@ -68,8 +69,41 @@ interpretSL g l (AST.StatList (x : xs)) = do
 interpretS :: GlobalEnv -> Env -> Stat -> IO (GlobalEnv, Env, Maybe[Val])
 -- Semicolons are NO-OP
 interpretS g l Semic = return (g, l, Nothing)
--- Global assignment
-interpretS g l (Asgn (VarList vl) el) = undefined
+-- Global assignment (or general reassignment) of vars
+interpretS g l (Asgn (VarList varl) el) = do
+  (g2,l2,vl) <- interpretEL g l el
+  -- In case there's void values here, turn them into nil
+  let cleanVl = cleanVals vl
+  (g3,l3,finalVarL) <- processVarL g2 l2 varl
+  print cleanVl
+  let (g4,l4) = updateValues g3 l3 finalVarL cleanVl
+  return (g4,l4,Nothing)
+  where
+    processVariable :: GlobalEnv -> Env -> Var -> IO (GlobalEnv, Env, Either Name (Unique ,[Val]))
+    processVariable g l (Var (PrefixName n PrefixEmpty)) = return (g,l, Left n)
+    processVariable g l (Var x) = do
+      (g2,l2, uid, _) <- interpretPE g l x
+      case uid of
+          Just x -> return (g2,l2,Right x)
+          Nothing -> error "internal error"
+    processVarL :: GlobalEnv -> Env -> [Var] -> IO(GlobalEnv, Env, [Either Name (Unique, [Val])])
+    processVarL g l [v] = do
+      (g2,l2, v2) <- processVariable g l v
+      return (g2,l2,[v2])
+    processVarL g l (v:vs) = do
+      (g2,l2, v2) <- processVariable g l v
+      (g3,l3, vTail) <- processVarL g2 l2 vs
+      return (g3,l3, v2 : vTail)
+    processVarL g l [] = error "internal error"
+    updateValue :: GlobalEnv -> Env -> Either Name (Unique, [Val]) -> Val -> (GlobalEnv, Env)
+    updateValue g l (Left n) v = insertVarLocal g l n v
+    updateValue g l (Right uid) v = updateTableVal g l uid v
+    updateValues :: GlobalEnv -> Env -> [Either Name (Unique, [Val])] -> [Val] -> (GlobalEnv, Env)
+    updateValues g l [] [] = (g,l)
+    updateValues g l [] _ = (g,l)
+    updateValues g l (x:xs) [] = let (g2,l2) = updateValue g l x NilVal in updateValues g2 l2 xs []
+    updateValues g l (x:xs) (y:ys) = let (g2,l2) = updateValue g l x y in updateValues g2 l2 xs ys
+
 interpretS g l (Do b) = interpretB g l b
 interpretS g l (LocalAsgn (AttrNameList attrnL) mEl) = do
   let (nl, _) = unzip attrnL -- Note: attributes don't do anything yet
@@ -86,7 +120,7 @@ interpretS g l (LocalAsgn (AttrNameList attrnL) mEl) = do
       let (g3,l3) = insertVarsCurrent g2 l2 nl vl
       return (g3,l3,Nothing)
 interpretS g l (FuncCallStat (FuncCall ex)) = do
-  (g2, l2, _) <- interpretPE g l ex
+  (g2, l2, _, _) <- interpretPE g l ex
   return (g2, l2, Nothing)
 interpretS g l (ForStat n e1 e2 me b) = do
   (g2,l2, start:_) <- interpretE g l e1
