@@ -71,7 +71,7 @@ library sol-frontend
   default-language: GHC2021
 
 library sol-backend
-  exposed-modules: Runtime.Expr, Runtime.Types, Runtime.Runtime, Runtime.Stat
+  exposed-modules: Runtime.Interpreter, Runtime.Types, Runtime.Runtime
 
   hs-source-dirs: lib/backend
 

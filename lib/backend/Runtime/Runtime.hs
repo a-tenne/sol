@@ -1,12 +1,12 @@
 module Runtime.Runtime where
 
-import Data.List (intercalate, find)
+import Data.List (find, intercalate)
 import qualified Data.Map as M
 import Data.Maybe (fromMaybe, listToMaybe)
 import qualified Data.Text.ICU as ICU
-import Runtime.Types
-import Data.Unique (newUnique, Unique)
+import Data.Unique (Unique, newUnique)
 import GHC.IO.Handle.Internals (wantReadableHandle)
+import Runtime.Types
 
 initialEnvVars :: IO (M.Map String Val)
 initialEnvVars = do
@@ -35,46 +35,46 @@ lookupVarLocal (Env localVars _ parent) key = case M.lookup key localVars of
   Nothing -> lookupVarLocal parent key
   x -> x
 
-lookupVar :: GlobalEnv -> Env -> String -> Maybe(Either GlobalEnv Env, Val)
+lookupVar :: GlobalEnv -> Env -> String -> Maybe (Either GlobalEnv Env, Val)
 lookupVar g l key = case resL of
   Just x -> Just (Right l, x)
   Nothing -> case resG of
-      Just y -> Just (Left g, y)
-      Nothing -> Nothing
+    Just y -> Just (Left g, y)
+    Nothing -> Nothing
   where
     resG = lookupVarGlobal g key
     resL = lookupVarLocal l key
 
-predicate ::  Unique ->  Val -> Bool
+predicate :: Unique -> Val -> Bool
 predicate uniq (TableVal u _) = u == uniq
 predicate _ _ = False
 
 nameFromUnique :: GlobalEnv -> Env -> Unique -> Maybe String
 nameFromUnique g EnvEmpty uniq = fst <$> find (predicate uniq . snd) (M.toList $ vars g)
 nameFromUnique g (Env varList _ parent) uniq = case fst <$> find (predicate uniq . snd) (M.toList varList) of
-    Nothing -> nameFromUnique g parent uniq
-    x -> x
+  Nothing -> nameFromUnique g parent uniq
+  x -> x
 
 updateTableVal :: GlobalEnv -> Env -> (Unique, [Val]) -> Val -> (GlobalEnv, Env)
 updateTableVal g l (uniq, vl) newV = case nameFromUnique g l uniq of
-    Nothing -> (g,l)
-    -- Expects the value to be a table, mutates it and inserts it into the scope where it belongs
-    Just n -> case getVar g l n of
-        (TableVal u t) -> insertVarLocal g l n (TableVal u (mutateTableVal t vl newV))
-        _ -> error "internal error"
-    where
-      mutateTableVal :: Table -> [Val] -> Val -> Table
-      -- Base case: the list only has one index value left, so we update the table with it
-      mutateTableVal t [v] newV = tableInsert t v newV
-      -- We check if the key exists within the given table. If the key does not exist or is not a table
-      -- we throw an error. If it is, we insert the new, mutated table into that old spot.
-      -- since it calls itself recursively within the constructor, it updates the actual value we want
-      -- to update and all upper values
-      mutateTableVal (Table m) (v:vs) newV = case M.lookup v m of
-          Just (TableVal u t) -> tableInsert (Table m) v (TableVal u (mutateTableVal t vs newV))
-          _ -> error "internal error"
-      -- The value list can never be empty.
-      mutateTableVal _ [] _ = error "internal error"
+  Nothing -> (g, l)
+  -- Expects the value to be a table, mutates it and inserts it into the scope where it belongs
+  Just n -> case getVar g l n of
+    (TableVal u t) -> insertVarLocal g l n (TableVal u (mutateTableVal t vl newV))
+    _ -> error "internal error"
+  where
+    mutateTableVal :: Table -> [Val] -> Val -> Table
+    -- Base case: the list only has one index value left, so we update the table with it
+    mutateTableVal t [v] newV = tableInsert t v newV
+    -- We check if the key exists within the given table. If the key does not exist or is not a table
+    -- we throw an error. If it is, we insert the new, mutated table into that old spot.
+    -- since it calls itself recursively within the constructor, it updates the actual value we want
+    -- to update and all upper values
+    mutateTableVal (Table m) (v : vs) newV = case M.lookup v m of
+      Just (TableVal u t) -> tableInsert (Table m) v (TableVal u (mutateTableVal t vs newV))
+      _ -> error "internal error"
+    -- The value list can never be empty.
+    mutateTableVal _ [] _ = error "internal error"
 
 getVar :: GlobalEnv -> Env -> String -> Val
 getVar g l key = case resL of
@@ -95,10 +95,10 @@ getParent (Env _ _ parent) = Just parent
 insertVarLocal :: GlobalEnv -> Env -> String -> Val -> (GlobalEnv, Env)
 insertVarLocal g EnvEmpty key value = (insertVarGlobal g key value, EnvEmpty)
 insertVarLocal g (Env localVars varArgs parent) key value = case exists of
-    Just _ -> case existsLocally of
-      Just _ -> (g, Env (M.insert key value localVars) varArgs parent)
-      Nothing ->let (g2, l2) = insertVarLocal g parent key value in (g2,Env localVars varArgs l2)
-    Nothing -> (g, Env (M.insert key value localVars) varArgs parent)
+  Just _ -> case existsLocally of
+    Just _ -> (g, Env (M.insert key value localVars) varArgs parent)
+    Nothing -> let (g2, l2) = insertVarLocal g parent key value in (g2, Env localVars varArgs l2)
+  Nothing -> (g, Env (M.insert key value localVars) varArgs parent)
   where
     existsLocally = M.lookup key localVars
     exists = lookupVar g (Env localVars varArgs parent) key
@@ -114,6 +114,7 @@ getVarArgs (Env _ varArgs _) = varArgs
 insertVarCurrent :: GlobalEnv -> Env -> String -> Val -> (GlobalEnv, Env)
 insertVarCurrent g EnvEmpty key value = (insertVarGlobal g key value, EnvEmpty)
 insertVarCurrent g (Env localVars varArgs parent) key value = (g, Env (M.insert key value localVars) varArgs parent)
+
 insertVarsCurrent :: GlobalEnv -> Env -> [String] -> [Val] -> (GlobalEnv, Env)
 insertVarsCurrent g l [] _ = (g, l)
 insertVarsCurrent g l _ [] = (g, l)
@@ -140,15 +141,15 @@ formatVals (x : xs)
   | x == VoidVal && null xs = []
   | x == VoidVal = NilVal : formatVals xs
   | otherwise = x : formatVals xs
+
 cleanVals :: [Val] -> [Val]
 cleanVals [] = []
 cleanVals (x : xs)
   | x == VoidVal = NilVal : formatVals xs
   | otherwise = x : formatVals xs
 
-
 luaPrint :: LuaFunc
-luaPrint g l args = do
+luaPrint  g l args = do
   let newArgs = formatVals args
   putStrLn $ intercalate "\t" $ map show newArgs
-  return (g,l, [VoidVal])
+  return (g, l, [VoidVal])

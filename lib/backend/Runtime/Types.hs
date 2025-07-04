@@ -1,13 +1,14 @@
 {-# LANGUAGE GADTs #-}
+
 module Runtime.Types where
 
-import Data.Map(Map)
-import Data.Char (toLower)
-import Data.Text.ICU (Collator)
 import AST
-import GHC.IO (unsafePerformIO)
-import GHC.StableName (makeStableName, hashStableName)
+import Data.Char (toLower)
+import Data.Map (Map)
+import Data.Text.ICU (Collator)
 import Data.Unique
+import GHC.IO (unsafePerformIO)
+import GHC.StableName (hashStableName, makeStableName)
 
 data Table where
   Table :: (Map Val Val) -> Table
@@ -41,7 +42,6 @@ compareSame (TableVal x _) (TableVal y _) = compare (hashUnique x) (hashUnique y
 compareSame (LabelVal _) (LabelVal _) = Prelude.EQ
 compareSame _ _ = error "compareSame: mismatched constructors"
 
-
 instance Eq Val where
   (StringVal x) == (StringVal y) = x == y
   (NumVal x) == (NumVal y) = x == y
@@ -61,13 +61,10 @@ instance Show Val where
   show VoidVal = error "internal error: attempt to show void value"
   show (FuncVal x _ _) = "function: " ++ show (hashUnique x)
   show (TableVal x _) = "table: " ++ show (hashUnique x)
-  
 
-type LuaFunc = GlobalEnv -> Env -> [Val] -> IO(GlobalEnv, Env, [Val])
+type LuaFunc = GlobalEnv -> Env -> [Val] -> IO (GlobalEnv, Env, [Val])
 
-
-
-data GlobalEnv = GlobalEnv { vars :: Map String Val, collator :: Collator }
+data GlobalEnv = GlobalEnv {vars :: Map String Val, collator :: Collator}
 
 instance Show GlobalEnv where
   show x = "GlobalEnv {" ++ show (vars x) ++ "}"
@@ -76,4 +73,4 @@ instance Eq GlobalEnv where
   x == y = vars x == vars y
 
 data Env = Env (Map String Val) [Val] Env | EnvEmpty
-  deriving(Eq, Show)
+  deriving (Eq, Show)

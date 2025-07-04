@@ -7,7 +7,7 @@ import System.Exit (exitFailure)
 import Parser.Parser(program)
 import Text.Parsec (parse)
 import Data.Char (isSpace)
-import Runtime.Stat (interpret)
+import Runtime.Interpreter (interpret)
 
 trim :: String -> String
 trim = f . f
