@@ -240,39 +240,57 @@ interpretPE' g l uid (v : _) (DotIndex y ys) = do
 
 -- Uid is irrelevant now, since we're calling a function.
 interpretPE' g l _ (v : _) (CallArgs y ys) = do
-  (g2, l2, v2 : vl2) <- interpretArgs g l v y
+  (g2, l2, v2 : vl2) <- interpretArgs g l v Nothing y
   case v2 of
     (TableVal u _) -> interpretPE' g l (Just (u, [])) (v2 : vl2) ys
     _ -> interpretPE' g2 l2 Nothing (v2 : vl2) ys
-interpretPE' _ _ _ _ (MethodArgs {}) = undefined
+interpretPE' g l _ (v:_) (MethodArgs n y ys) = do
+  case v of
+      (TableVal uniq t) -> do
+        let fn = tableLookup t (StringVal n)
+        (g2,l2,v2:vl2) <- interpretArgs g l fn (Just v) y
+        case v2 of
+          (TableVal u _) -> interpretPE' g l (Just (u, [])) (v2 : vl2) ys
+          _ -> interpretPE' g2 l2 Nothing (v2 : vl2) ys
+      _ -> error $ "tried to index a non table value: " ++ show v
+
 interpretPE' g l uid vl PrefixEmpty = return (g, l, uid, vl)
 
 -- Check if input value is a function. If it is, create a new environment
-interpretArgs :: GlobalEnv -> Env -> Val -> Args -> IO (GlobalEnv, Env, [Val])
-interpretArgs g l v (ArgList el) = do
+interpretArgs :: GlobalEnv -> Env -> Val -> Maybe Val -> Args -> IO (GlobalEnv, Env, [Val])
+interpretArgs g l v methodCaller (ArgList el) = do
   (g2, l2, vl) <- interpretEL g l el
+  let vl2 = case methodCaller of
+        Nothing -> vl
+        Just self -> self : vl
   -- Need to substitute any void values for nil before calling, except for the last one
-  (g3, l3, vl2) <- case v of
+  (g3, l3, vl3) <- case v of
     (FuncVal _ numArgs func) -> do
-      let lenDiff = numArgs - length vl
-      let formattedVals = cleanVals vl ++ replicate lenDiff NilVal
+      let lenDiff = numArgs - length vl2
+      let formattedVals = cleanVals vl2 ++ replicate lenDiff NilVal
       func g2 l2 formattedVals
     _ -> error $ show v ++ " is not a function."
-  return (g3, l2, vl2)
-interpretArgs g l v (ArgString e) = do
+  return (g3, l2, vl3)
+interpretArgs g l v methodCaller (ArgString e) = do
   (g2, l2, vl) <- interpretE g l e
+  let vl2 = case methodCaller of
+        Nothing -> vl
+        Just self -> self : vl
+  (g3, l3, vl3) <- case v of
+    (FuncVal _ numArgs func) -> func g2 l2 vl2
+    _ -> error $ show v ++ " is not a function."
+  return (g3, l2, vl3)
+interpretArgs g l v methodCaller (ArgTable (TableConstructor fl)) = do
+  (g2, l2, t) <- interpretFields g l fl
+  tName <- newUnique
+  let tableVal = TableVal tName t
+  let vl = case methodCaller of
+        Nothing -> [tableVal]
+        Just self -> self : [tableVal]
   (g3, l3, vl2) <- case v of
     (FuncVal _ numArgs func) -> func g2 l2 vl
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl2)
-interpretArgs g l v (ArgTable (TableConstructor fl)) = do
-  (g2, l2, t) <- interpretFields g l fl
-  tName <- newUnique
-  let tableVal = TableVal tName t
-  (g3, l3, vl) <- case v of
-    (FuncVal _ numArgs func) -> func g2 l2 [tableVal]
-    _ -> error $ show v ++ " is not a function."
-  return (g3, l2, vl)
 
 interpretFieldsHelper :: GlobalEnv -> Env -> Table -> [Field] -> IO (GlobalEnv, Env, Table)
 interpretFieldsHelper g l t [] = return (g, l, t)
@@ -428,7 +446,9 @@ interpretS g l (Asgn (VarList varl) el) = do
       return (g3, l3, v2 : vTail)
     processVarL g l [] = error "internal error"
     updateValue :: GlobalEnv -> Env -> Either Name (Unique, [Val]) -> Val -> (GlobalEnv, Env)
-    updateValue g l (Left n) v = insertVarLocal g l n v
+    updateValue g l (Left n) v = case lookupVar g l n of
+        Just (Right _, _) -> insertVarLocal g l n v
+        _ -> (insertVarGlobal g n v,l)
     updateValue g l (Right uid) v = updateTableVal g l uid v
     updateValues :: GlobalEnv -> Env -> [Either Name (Unique, [Val])] -> [Val] -> (GlobalEnv, Env)
     updateValues g l [] [] = (g, l)
@@ -519,27 +539,60 @@ interpretS g l (IfStat cond1 b (ElseIfList elifl) mElse) = do
       let ifEnv = newLocalEnv (Just l)
       (g2,ifEnv2,retStat) <- interpretB g ifEnv b
       let l2 = fromMaybe EnvEmpty $ getParent ifEnv2
-      return(g2,l2,retStat)
+      return (g2,l2,retStat)
     validateElif :: GlobalEnv -> Env -> ElseIf -> IO(GlobalEnv, Env, Bool)
     validateElif g l (ElseIf cond b)= do
       (g2,l2,v:_) <- interpretE g l cond
       if valIsTrue v
-        then 
+        then
           return (g2,l2,True)
         else
           return (g2,l2,False)
     validateElifL :: GlobalEnv -> Env -> [ElseIf] -> IO(GlobalEnv, Env, Maybe Block)
     validateElifL g l [] = return (g,l,Nothing)
     validateElifL g l ((ElseIf cond b):xs) = do
-      (g2,l2,condSatisfied) <- validateElif g l (ElseIf cond b) 
-      if condSatisfied 
+      (g2,l2,condSatisfied) <- validateElif g l (ElseIf cond b)
+      if condSatisfied
         then
           return (g2,l2, Just b)
         else
           validateElifL g2 l2 xs
-      
-interpretS _ _ (ForIn {}) = undefined
-interpretS _ _ (FuncDefStat {}) = undefined
+
+interpretS _ _ (ForIn {}) = error "sol does not currently support for ... in statements"
+interpretS g l (FuncDefStat (FuncName n nl maybeN) (FuncBody (ParamList (NameList nlFn)varArg)b)) = do
+  let vl = map StringVal $ case maybeN of
+        Just x -> nl ++ [x]
+        Nothing -> nl
+  uniq <- newUnique
+  case lookupVar g l n of
+      Just(_,TableVal u _)  -> do
+          let newNl = case maybeN of
+                Just _ -> "self" : nlFn
+                Nothing -> nlFn
+          let fn = luaFunc (FuncBody (ParamList (NameList newNl) varArg) b)
+          let (g2,l2) = updateTableVal g l (u, vl) (FuncVal uniq (length newNl) fn)
+          return (g2,l2,Nothing)
+      Just(env, v) -> do
+          if not $ null vl then error $ "tried to index a non table value: " ++ show v
+            else do
+              let fn = luaFunc (FuncBody (ParamList (NameList nlFn) varArg) b)
+              let funcV = FuncVal uniq (length nlFn) fn
+              case env of
+                  Left gEnv -> do
+                      let g2 = insertVarGlobal g n funcV
+                      return (g2,l,Nothing)
+                  Right _ -> do
+                      let (g2,l2) = insertVarLocal g l n funcV
+                      return (g2,l2,Nothing)
+      Nothing -> do
+          if not $ null vl then error $ "tried to index a non table value: " ++ show NilVal
+            else do
+              let fn = luaFunc (FuncBody (ParamList (NameList nlFn) varArg) b)
+              let g2 = insertVarGlobal g n (FuncVal uniq (length nlFn) fn)
+              return (g2,l,Nothing)
+
+
+
 interpretS g l (LocalFuncStat n fb) = do
   let fn = luaFunc fb
   let (FuncBody (ParamList (NameList nl) _) _) = fb
