@@ -16,9 +16,9 @@ data Table where
   Table :: (Map Val Val) -> Table
 
 -- | Represents values of the lua language.
---  VoidVal and LabelVal are values that technically don't exist, so accessing them illegally with result in an internal error.
+--  VoidVal, LabelVal and GotoVal are values that technically don't exist, so accessing them illegally with result in an internal error.
 --  Note that tables and functions are tagged with a Unique identifier, to be able to compare them and table values are IORef, so we can modify in place.
-data Val = StringVal String | NumVal Double | BoolVal Bool | NilVal | VoidVal | FuncVal Unique Int LuaFunc | TableVal Unique (IORef Table) | LabelVal StatList
+data Val = StringVal String | NumVal Double | BoolVal Bool | NilVal | VoidVal | FuncVal Unique Int LuaFunc | TableVal Unique (IORef Table) | LabelVal StatList | GotoVal String
 
 -- | Assigns each value a number. Only needed to be able to order them.
 constructorTag :: Val -> Int
@@ -30,6 +30,7 @@ constructorTag VoidVal = 4
 constructorTag (FuncVal {}) = 5
 constructorTag (TableVal {}) = 6
 constructorTag (LabelVal _) = 7
+constructorTag (GotoVal _) = 8
 
 instance Ord Val where
   compare x y =
@@ -47,6 +48,7 @@ compareSame VoidVal VoidVal = Prelude.EQ
 compareSame (FuncVal x _ _) (FuncVal y _ _) = compare (hashUnique x) (hashUnique y)
 compareSame (TableVal x _) (TableVal y _) = compare (hashUnique x) (hashUnique y)
 compareSame (LabelVal _) (LabelVal _) = Prelude.EQ
+compareSame (GotoVal _) (GotoVal _) = Prelude.EQ
 compareSame _ _ = error "compareSame: mismatched constructors"
 
 instance Eq Val where
@@ -58,10 +60,11 @@ instance Eq Val where
   (FuncVal x _ _) == (FuncVal y _ _) = x == y
   (TableVal x _) == (TableVal y _) = x == y
   (LabelVal x) == (LabelVal y) = x == y
+  (GotoVal x) == (GotoVal y) = x == y
   _ == _ = False
 
 instance Show Val where
-  show (StringVal x) = show x
+  show (StringVal x) = x
   show (NumVal x) = if fromIntegral (round x) == x then show $ round x else show x
   show (BoolVal x) = map toLower $ show x
   show NilVal = "nil"
@@ -69,6 +72,7 @@ instance Show Val where
   show (LabelVal _) = error "internal error: attempt to show label value"
   show (FuncVal x _ _) = "function: " ++ show (hashUnique x)
   show (TableVal x _) = "table: " ++ show (hashUnique x)
+  show (GotoVal _) = error "internal error: attempt to show goto value"
 
 -- | The internal lua function signature, used by both native and user created functions.
 type LuaFunc = GlobalEnv -> Env -> [Val] -> IO (GlobalEnv, Env, [Val])

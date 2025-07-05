@@ -437,7 +437,7 @@ interpretE3 :: Test
 interpretE3 = TestCase $ do
   g <- initialEnv
   (_,_, res) <- interpretE g l tree
-  assertEqual ("Evaluates complex expression " ++ show ex) ([NumVal (-1)]) res
+  assertEqual ("Evaluates complex expression " ++ show ex) [NumVal (-1)] res
   where
     ex = "200000000 // -0x5.3p-2 ^ (0X5 + 80.623 * '0x12')"
     (Right tree) = parse ex1 "" ex

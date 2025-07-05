@@ -5,8 +5,9 @@ import Test.HUnit
 import Expr (exprTests)
 import Runtime (runtimeTests)
 import Stat (statTests)
+import Interpreter (programTests)
 
-tests = TestList [exprTests, runtimeTests, statTests]
+tests = TestList [exprTests, runtimeTests, statTests, programTests]
 
 main :: IO ()
 main = do

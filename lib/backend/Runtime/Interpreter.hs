@@ -1,13 +1,10 @@
-{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
-{-# OPTIONS_GHC -Wno-overlapping-patterns #-}
-{-# OPTIONS_GHC -Wno-type-defaults #-}
-
 module Runtime.Interpreter where
 
 import AST
 import Control.Monad (void)
 import Data.Bits
 import Data.Bits.Floating (FloatingBits (coerceToFloat), coerceToWord)
+import Data.IORef (newIORef, readIORef)
 import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
 import Data.Text (pack)
@@ -17,7 +14,6 @@ import Parser.Parser (num)
 import Runtime.Runtime
 import Runtime.Types
 import Text.Parsec (parse)
-import Data.IORef (readIORef, newIORef)
 
 -- | Turns an AST literal into a runtime value.
 --  Note that int64 values are turned into float64.
@@ -52,7 +48,7 @@ arith fn g l (StringVal x) (StringVal y) = return (g, l, NumVal $ fn a b)
     (NumVal b) = coerce y
 arith _ _ _ x y = error $ "tried to perform illegal arithmetic operation between " ++ show x ++ " and " ++ show y
 
--- | Performs @floor@ division on two values and returns the result.
+-- | Performs floor division on two values and returns the result.
 --  If one of the values is not a string or a number, this function will fail.
 intDiv :: BinFn
 intDiv g l (NumVal x) (NumVal y) = return (g, l, NumVal $ fromIntegral $ floor (x / y))
@@ -77,7 +73,7 @@ valConcat g l (NumVal x) (StringVal y) = return (g, l, StringVal $ show (NumVal 
 valConcat g l (NumVal x) (NumVal y) = return (g, l, StringVal $ show (NumVal x) ++ show (NumVal y))
 valConcat _ _ x y = error $ "tried to perform illegal concatenation between " ++ show x ++ " and " ++ show y
 
--- | Performs an @and@ operation on two values. 
+-- | Performs an and operation on two values.
 --  If the first value is truthy, it returns the second one.
 --  If not, it returns the first one.
 valAnd :: BinFn
@@ -86,7 +82,7 @@ valAnd g l (BoolVal False) _ = return (g, l, BoolVal False)
 valAnd g l NilVal _ = return (g, l, NilVal)
 valAnd g l _ x = return (g, l, x)
 
--- | Performs an @or@ operation on two values. 
+-- | Performs an or operation on two values.
 --  Returns the first value if it's truthy, if not it returns the second one.
 valOr :: BinFn
 valOr g l (BoolVal True) _ = return (g, l, BoolVal True)
@@ -107,7 +103,7 @@ numOrd :: (Double -> Double -> Bool) -> BinFn
 numOrd fn g l (NumVal x) (NumVal y) = return (g, l, BoolVal $ fn x y)
 numOrd _ _ _ x y = error $ "tried to perform illegal comparison between " ++ show x ++ " and " ++ show y
 
--- | Generalized comparison function between two strings. 
+-- | Generalized comparison function between two strings.
 --  Compares based on locale.
 strOrd :: GlobalEnv -> Ordering -> Val -> Val -> Bool
 strOrd g ord (StringVal x) (StringVal y) = collate (collator g) (pack x) (pack y) == ord
@@ -149,19 +145,19 @@ valMod g l (StringVal x) (StringVal y) = return (g, l, NumVal $ fromIntegral $ f
     (NumVal b) = coerce y
 valMod _ _ x y = error $ "tried to perform illegal arithmetic operation between " ++ show x ++ " and " ++ show y
 
--- | Performs a binary @and@ operation on two values and returns the result.
+-- | Performs a binary and operation on two values and returns the result.
 --  If one of the values is not a number, this function will fail.
 valBAnd :: BinFn
 valBAnd g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x .&. coerceToWord y)
 valBAnd _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
--- | Performs a binary @or@ operation on two values and returns the result.
+-- | Performs a binary or operation on two values and returns the result.
 --  If one of the values is not a number, this function will fail.
 valBOr :: BinFn
 valBOr g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x .|. coerceToWord y)
 valBOr _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
--- | Performs a binary @xor@ operation on two values and returns the result.
+-- | Performs a binary xor operation on two values and returns the result.
 --  If one of the values is not a number, this function will fail.
 valBXor :: BinFn
 valBXor g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x `xor` coerceToWord y)
@@ -237,7 +233,7 @@ valULen g l (TableVal _ tRef) = do
   return (g, l, NumVal $ fromIntegral $ length m)
 valULen _ _ x = error $ "tried to perform a length operation on a non table value: " ++ show x
 
--- | Performs a bitwise @not@ on the given value.
+-- | Performs a bitwise not on the given value.
 --  If the value is not a number, this function will fail.
 valUBNot :: UnFn
 valUBNot g l (NumVal x) = return (g, l, NumVal $ fromIntegral $ complement $ coerceToWord x)
@@ -304,17 +300,16 @@ interpretPE' g l _ (v : _) (CallArgs y ys) = do
   case v2 of
     (TableVal u _) -> interpretPE' g l (Just (u, [])) (v2 : vl2) ys
     _ -> interpretPE' g2 l2 Nothing (v2 : vl2) ys
-interpretPE' g l _ (v:_) (MethodArgs n y ys) = do
+interpretPE' g l _ (v : _) (MethodArgs n y ys) = do
   case v of
-      (TableVal uniq tRef) -> do
-        t <- readIORef tRef
-        let fn = tableLookup t (StringVal n)
-        (g2,l2,v2:vl2) <- interpretArgs g l fn (Just v) y
-        case v2 of
-          (TableVal u _) -> interpretPE' g l (Just (u, [])) (v2 : vl2) ys
-          _ -> interpretPE' g2 l2 Nothing (v2 : vl2) ys
-      _ -> error $ "tried to index a non table value: " ++ show v
-
+    (TableVal uniq tRef) -> do
+      t <- readIORef tRef
+      let fn = tableLookup t (StringVal n)
+      (g2, l2, v2 : vl2) <- interpretArgs g l fn (Just v) y
+      case v2 of
+        (TableVal u _) -> interpretPE' g l (Just (u, [])) (v2 : vl2) ys
+        _ -> interpretPE' g2 l2 Nothing (v2 : vl2) ys
+    _ -> error $ "tried to index a non table value: " ++ show v
 interpretPE' g l uid vl PrefixEmpty = return (g, l, uid, vl)
 
 -- | Interprets function call arguments.
@@ -442,27 +437,45 @@ interpretCh (Chunk b) = do
   g <- initialEnv
   void $ interpretB g EnvEmpty b
 
--- | Interprets a Lua block, its statement list and its @return@ value.
---  Returns the new global and local environment, as well as an value list result, in case there was a @return@ statement.
+-- | Collects all labels and inserts them into the current environment.
+collectLabels :: GlobalEnv -> Env -> StatList -> (GlobalEnv, Env)
+collectLabels g l (StatList []) = (g, l)
+collectLabels g l (StatList ((Label n) : xs)) = let (g2, l2) = insertVarCurrent g l n (LabelVal (StatList xs)) in collectLabels g2 l2 (StatList xs)
+collectLabels g l (StatList (_ : xs)) = collectLabels g l (StatList xs)
+
+-- | Interprets a Lua block, its statement list and its return value.
+--  Before running the statement list, it calls collectLabels to know where to jump if necessary.
+--  Returns the new global and local environment, as well as an value list result, in case there was a return statement.
 interpretB :: GlobalEnv -> Env -> Block -> IO (GlobalEnv, Env, Maybe [Val])
 interpretB g l (Block sl rs) = do
-  (g2, l2, ret) <- interpretSL g l sl
+  let (g2, l2) = collectLabels g l sl
+  (g3, l3, ret) <- interpretSL g2 l2 sl
   case ret of
     -- Case: statement list returned, stop here
-    Just _ -> return (g2, l2, ret)
+    Just [GotoVal label] -> case lookupVar g3 l3 label of
+      Just (Left _, LabelVal labelSL) ->
+        if l3 /= EnvEmpty
+          then return (g3, l3, Just [GotoVal label])
+          else interpretB g3 l3 (Block labelSL rs)
+      Just (Right l4, LabelVal labelSL) ->
+        if l4 /= l3
+          then return (g3, l4, Just [GotoVal label])
+          else interpretB g3 l4 (Block labelSL rs)
+      _ -> error $ "Goto label " ++ label ++ " not found"
+    Just _ -> return (g3, l3, ret)
     -- Case: statement list didn't return, check block's return
     Nothing -> case rs of
       -- Case: there is a return. Interpret EL and return values
       Just (RetStat el) -> do
-        (g3, l3, vl) <- interpretEL g2 l2 el
-        return (g3, l3, Just vl)
+        (g4, l4, vl) <- interpretEL g3 l3 el
+        return (g4, l4, Just vl)
       -- Case: We have no return whatsoever
-      Nothing -> return (g2, l2, Nothing)
+      Nothing -> return (g3, l3, Nothing)
 
 -- | Interprets a list of statements.
---  If there is a @return@ or @break@ statement at any point, the last element
+--  If there is a return or break statement at any point, the last element
 --  of the tuple becomes a Just [Val] and at that point, the stack must be unwinded.
---  Returns the new global and local environment, as well as an value list result, in case there was a @return@ statement.
+--  Returns the new global and local environment, as well as an value list result, in case there was a return statement.
 interpretSL :: GlobalEnv -> Env -> StatList -> IO (GlobalEnv, Env, Maybe [Val])
 interpretSL g l (AST.StatList []) = return (g, l, Nothing)
 -- Returns VoidVal so the stack unwinds. Otherwise it wouldn't break out of a loop.
@@ -473,24 +486,22 @@ interpretSL g l (AST.StatList ((Goto n) : _)) = do
   case v of
     Just x -> case x of
       (Left g2, v2) ->
-        if l /= EnvEmpty
-          then labelError
-          else case v2 of
-            (LabelVal sl) -> interpretSL g2 l sl
-            _ -> labelError
+        case v2 of
+          (LabelVal sl) ->
+            if l /= EnvEmpty
+              then return (g, l, Just [GotoVal n])
+              else interpretSL g l sl
+          _ -> labelError
       (Right l2, v2) ->
-        if l /= l2
-          then labelError
-          else case v2 of
-            (LabelVal sl) -> interpretSL g l2 sl
-            _ -> labelError
+        case v2 of
+          (LabelVal sl) ->
+            if l /= l2
+              then return (g, l, Just [GotoVal n])
+              else interpretSL g l sl
+          _ -> labelError
     Nothing -> labelError
   where
     labelError = error $ "Goto label " ++ n ++ " not found"
--- Creates new label
-interpretSL g l (AST.StatList ((Label n) : xs)) = do
-  let (g2, l2) = insertVarLocal g l n (LabelVal (AST.StatList xs))
-  interpretSL g2 l2 (AST.StatList xs)
 
 -- Checks if the interpreted statement contained a return. If so, stop. If not, keep going
 interpretSL g l (AST.StatList (x : xs)) = do
@@ -499,12 +510,12 @@ interpretSL g l (AST.StatList (x : xs)) = do
     Nothing -> interpretSL g2 l2 (AST.StatList xs)
     Just _ -> return (g2, l2, ret)
 
-
 -- | Interprets a Lua statement.
---  If there is a @return@ statement at any point, the last element
+--  If there is a return statement at any point, the last element
 --  of the tuple becomes a Just [Val] and at that point, the stack must be unwinded.
---  Returns the new global and local environment, as well as an value list result, in case there was a @return@ or @break@ statement.
---  Since it's not possible to process a @label@, @goto@ or @break@ statement at this level, trying to do so throws an error.
+--  Returns the new global and local environment, as well as an value list result, in case there was a return or break statement.
+--  Since it's not possible to process a goto or break statement at this level, trying to do so throws an error.
+--  Labels are ignored here, since they need to be processed before.
 interpretS :: GlobalEnv -> Env -> Stat -> IO (GlobalEnv, Env, Maybe [Val])
 -- Semicolons are NO-OP
 interpretS g l Semic = return (g, l, Nothing)
@@ -533,19 +544,19 @@ interpretS g l (Asgn (VarList varl) el) = do
       (g3, l3, vTail) <- processVarL g2 l2 vs
       return (g3, l3, v2 : vTail)
     processVarL g l [] = error "internal error"
-    updateValue :: GlobalEnv -> Env -> Either Name (Unique, [Val]) -> Val -> IO(GlobalEnv, Env)
+    updateValue :: GlobalEnv -> Env -> Either Name (Unique, [Val]) -> Val -> IO (GlobalEnv, Env)
     updateValue g l (Left n) v = case lookupVar g l n of
-        Just (Right _, _) -> return $ insertVarLocal g l n v
-        _ -> return (insertVarGlobal g n v,l)
-    updateValue g l (Right uid) v = updateTableVal g l uid v >> return (g,l)
-    updateValues :: GlobalEnv -> Env -> [Either Name (Unique, [Val])] -> [Val] -> IO(GlobalEnv, Env)
+      Just (Right _, _) -> return $ insertVarLocal g l n v
+      _ -> return (insertVarGlobal g n v, l)
+    updateValue g l (Right uid) v = updateTableVal g l uid v >> return (g, l)
+    updateValues :: GlobalEnv -> Env -> [Either Name (Unique, [Val])] -> [Val] -> IO (GlobalEnv, Env)
     updateValues g l [] [] = return (g, l)
     updateValues g l [] _ = return (g, l)
     updateValues g l (x : xs) [] = do
-      (g2, l2) <- updateValue g l x NilVal 
+      (g2, l2) <- updateValue g l x NilVal
       updateValues g2 l2 xs []
-    updateValues g l (x : xs) (y : ys) = do 
-      (g2, l2) <- updateValue g l x y 
+    updateValues g l (x : xs) (y : ys) = do
+      (g2, l2) <- updateValue g l x y
       updateValues g2 l2 xs ys
 interpretS g l (Do b) = interpretB g l b
 interpretS g l (LocalAsgn (AttrNameList attrnL) mEl) = do
@@ -571,7 +582,7 @@ interpretS g l (ForStat n e1 e2 me b) = do
   (g4, l4, incr : _) <- case me of
     Just x -> interpretE g3 l3 x
     Nothing -> return (g3, l3, [NumVal 1])
-  assertNumber start >> assertNumber end >> assertNumber incr
+  assertNumber start >> assertNumber end >> assertNumber incr >> assertNotZero incr
   -- insert index into env
   let (g5, l5) = insertVarCurrent g4 (newLocalEnv l4) n start
   -- run loop
@@ -587,6 +598,10 @@ interpretS g l (ForStat n e1 e2 me b) = do
     assertNumber :: Val -> IO ()
     assertNumber (NumVal _) = return ()
     assertNumber x = error $ "for loop index value " ++ show x ++ " is not a number"
+    assertNotZero :: Val -> IO ()
+    assertNotZero (NumVal x)
+      | x == 0 = error "for loop step cannot be 0"
+      | otherwise = return ()
 interpretS g l (WhileDo e b) = do
   (g2, l2, v : _) <- interpretE g l e
   if valIsTrue v
@@ -615,74 +630,74 @@ interpretS g l (RepeatUntil b e) = do
         then return (g, l, Nothing)
         else interpretS g3 l3 (RepeatUntil b e)
 interpretS g l (IfStat cond1 b (ElseIfList elifl) mElse) = do
-  (g2,l2,v1:_) <- interpretE g l cond1
+  (g2, l2, v1 : _) <- interpretE g l cond1
   if valIsTrue v1
     then interpretIfBlock g2 l2 b
     else do
-      (g3,l3, mBlock) <- validateElifL g2 l2 elifl
+      (g3, l3, mBlock) <- validateElifL g2 l2 elifl
       case mBlock of
         Just elifb -> interpretIfBlock g3 l3 elifb
         Nothing -> case mElse of
-            Just (Else elseb) -> interpretIfBlock g3 l3 elseb
-            Nothing -> return (g3,l3,Nothing)
+          Just (Else elseb) -> interpretIfBlock g3 l3 elseb
+          Nothing -> return (g3, l3, Nothing)
   where
-    interpretIfBlock :: GlobalEnv -> Env -> Block -> IO(GlobalEnv, Env, Maybe [Val])
+    interpretIfBlock :: GlobalEnv -> Env -> Block -> IO (GlobalEnv, Env, Maybe [Val])
     interpretIfBlock g l b = do
       let ifEnv = newLocalEnv l
-      (g2,ifEnv2,retStat) <- interpretB g ifEnv b
+      (g2, ifEnv2, retStat) <- interpretB g ifEnv b
       let l2 = fromMaybe EnvEmpty $ getParent ifEnv2
-      return (g2,l2,retStat)
-    validateElif :: GlobalEnv -> Env -> ElseIf -> IO(GlobalEnv, Env, Bool)
-    validateElif g l (ElseIf cond b)= do
-      (g2,l2,v:_) <- interpretE g l cond
+      return (g2, l2, retStat)
+    validateElif :: GlobalEnv -> Env -> ElseIf -> IO (GlobalEnv, Env, Bool)
+    validateElif g l (ElseIf cond b) = do
+      (g2, l2, v : _) <- interpretE g l cond
       if valIsTrue v
         then
-          return (g2,l2,True)
+          return (g2, l2, True)
         else
-          return (g2,l2,False)
-    validateElifL :: GlobalEnv -> Env -> [ElseIf] -> IO(GlobalEnv, Env, Maybe Block)
-    validateElifL g l [] = return (g,l,Nothing)
-    validateElifL g l ((ElseIf cond b):xs) = do
-      (g2,l2,condSatisfied) <- validateElif g l (ElseIf cond b)
+          return (g2, l2, False)
+    validateElifL :: GlobalEnv -> Env -> [ElseIf] -> IO (GlobalEnv, Env, Maybe Block)
+    validateElifL g l [] = return (g, l, Nothing)
+    validateElifL g l ((ElseIf cond b) : xs) = do
+      (g2, l2, condSatisfied) <- validateElif g l (ElseIf cond b)
       if condSatisfied
         then
-          return (g2,l2, Just b)
+          return (g2, l2, Just b)
         else
           validateElifL g2 l2 xs
-
 interpretS _ _ (ForIn {}) = error "sol does not currently support for ... in statements"
-interpretS g l (FuncDefStat (FuncName n nl maybeN) (FuncBody (ParamList (NameList nlFn)varArg)b)) = do
+interpretS g l (FuncDefStat (FuncName n nl maybeN) (FuncBody (ParamList (NameList nlFn) varArg) b)) = do
   let vl = map StringVal $ case maybeN of
         Just x -> nl ++ [x]
         Nothing -> nl
   uniq <- newUnique
   case lookupVar g l n of
-      Just(_,TableVal u _)  -> do
-          let newNl = case maybeN of
-                Just _ -> "self" : nlFn
-                Nothing -> nlFn
-          let fn = luaFunc (FuncBody (ParamList (NameList newNl) varArg) b)
-          updateTableVal g l (u, vl) (FuncVal uniq (length newNl) fn)
-          return (g,l,Nothing)
-      Just(env, v) -> do
-          if not $ null vl then error $ "tried to index a non table value: " ++ show v
-            else do
-              let fn = luaFunc (FuncBody (ParamList (NameList nlFn) varArg) b)
-              let funcV = FuncVal uniq (length nlFn) fn
-              case env of
-                  Left gEnv -> do
-                      let g2 = insertVarGlobal g n funcV
-                      return (g2,l,Nothing)
-                  Right _ -> do
-                      let (g2,l2) = insertVarLocal g l n funcV
-                      return (g2,l2,Nothing)
-      Nothing -> do
-          if not $ null vl then error $ "tried to index a non table value: " ++ show NilVal
-            else do
-              let fn = luaFunc (FuncBody (ParamList (NameList nlFn) varArg) b)
-              let g2 = insertVarGlobal g n (FuncVal uniq (length nlFn) fn)
-              return (g2,l,Nothing)
-
+    Just (_, TableVal u _) -> do
+      let newNl = case maybeN of
+            Just _ -> "self" : nlFn
+            Nothing -> nlFn
+      let fn = luaFunc (FuncBody (ParamList (NameList newNl) varArg) b)
+      updateTableVal g l (u, vl) (FuncVal uniq (length newNl) fn)
+      return (g, l, Nothing)
+    Just (env, v) -> do
+      if not $ null vl
+        then error $ "tried to index a non table value: " ++ show v
+        else do
+          let fn = luaFunc (FuncBody (ParamList (NameList nlFn) varArg) b)
+          let funcV = FuncVal uniq (length nlFn) fn
+          case env of
+            Left gEnv -> do
+              let g2 = insertVarGlobal g n funcV
+              return (g2, l, Nothing)
+            Right _ -> do
+              let (g2, l2) = insertVarLocal g l n funcV
+              return (g2, l2, Nothing)
+    Nothing -> do
+      if not $ null vl
+        then error $ "tried to index a non table value: " ++ show NilVal
+        else do
+          let fn = luaFunc (FuncBody (ParamList (NameList nlFn) varArg) b)
+          let g2 = insertVarGlobal g n (FuncVal uniq (length nlFn) fn)
+          return (g2, l, Nothing)
 interpretS g l (LocalFuncStat n fb) = do
   let fn = luaFunc fb
   let (FuncBody (ParamList (NameList nl) _) _) = fb
@@ -691,16 +706,18 @@ interpretS g l (LocalFuncStat n fb) = do
   let (g2, l2) = insertVarCurrent g l n (FuncVal uniq numArgs fn)
   return (g2, l2, Nothing)
 interpretS _ _ Break = error "Internal error: a break should be handled in statement list processing"
-interpretS _ _ (Label _) = error "Internal error: a label should be handled in statement list processing"
+-- Labels are corrected at the start of a block
+interpretS g l (Label _) = return (g, l, Nothing)
 interpretS _ _ (Goto _) = error "Internal error: a goto should be handled in statement list processing"
 
 -- | Regular for loop iteration.
--- The loop is broken if there as a @return@ @or@ @break@ statement found at any point.
--- Returns the new global and local environment, as well as an value list result, in case there was a @return@ statement.
+-- The loop is broken if there as a return or break statement found at any point.
+-- Returns the new global and local environment, as well as an value list result, in case there was a return statement.
 forIter :: GlobalEnv -> Env -> Name -> Val -> Val -> Block -> IO (GlobalEnv, Env, Maybe [Val])
 forIter g l n (NumVal end) (NumVal incr) b
   -- end condition
-  | current > end = return (g, l, Nothing)
+  | incr < 0 && current < end = return (g, l, Nothing)
+  | incr > 0 && current > end = return (g, l, Nothing)
   | otherwise = do
       -- create loop environment
       let loopEnv = newLocalEnv l
@@ -723,7 +740,7 @@ forIter g l n (NumVal end) (NumVal incr) b
     (NumVal current) = getVar g l n
 
 -- | Template for creating a lua function at runtime.
---  Any function without an explicit @return@ statement will return [VoidVal]
+--  Any function without an explicit return statement will return [VoidVal]
 luaFunc :: FuncBody -> LuaFunc
 luaFunc (FuncBody (ParamList (NameList nl) varArg) b) g l vl = do
   let paramLen = length nl
