@@ -9,11 +9,12 @@ import Data.Text.ICU (Collator)
 import Data.Unique
 import GHC.IO (unsafePerformIO)
 import GHC.StableName (hashStableName, makeStableName)
+import Data.IORef
 
 data Table where
   Table :: (Map Val Val) -> Table
 
-data Val = StringVal String | NumVal Double | BoolVal Bool | NilVal | VoidVal | FuncVal Unique Int LuaFunc | TableVal Unique Table | LabelVal StatList
+data Val = StringVal String | NumVal Double | BoolVal Bool | NilVal | VoidVal | FuncVal Unique Int LuaFunc | TableVal Unique (IORef Table) | LabelVal StatList
 
 constructorTag :: Val -> Int
 constructorTag (StringVal _) = 0

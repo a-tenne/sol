@@ -17,6 +17,7 @@ import Parser.Parser (num)
 import Runtime.Runtime
 import Runtime.Types
 import Text.Parsec (parse)
+import Data.IORef (readIORef, newIORef)
 
 valFromLiteral :: Literal -> Val
 valFromLiteral (StringLit x) = StringVal x
@@ -185,7 +186,9 @@ valUMinus g l (StringVal x) = return (g, l, NumVal (-a))
 valUMinus _ _ x = error $ "tried to perform illegal operation -(" ++ show x ++ ")"
 
 valULen :: UnFn
-valULen g l (TableVal _ (Table m)) = return (g, l, NumVal $ fromIntegral $ length m)
+valULen g l (TableVal _ tRef) = do
+  (Table m) <- readIORef tRef
+  return (g, l, NumVal $ fromIntegral $ length m)
 valULen _ _ x = error $ "tried to perform a length operation on a non table value: " ++ show x
 
 valUBNot :: UnFn
@@ -218,8 +221,9 @@ interpretPE' :: GlobalEnv -> Env -> Maybe (Unique, [Val]) -> [Val] -> PrefixExpr
 -- Indexes a table. Adds the value used to index the table into the value list, if this is a table access chain.
 interpretPE' g l uid (v : _) (TableIndex y ys) = do
   case v of
-    (TableVal _ t) -> do
+    (TableVal _ tRef) -> do
       (g2, l2, v2 : _) <- interpretE g l y
+      t <- readIORef tRef
       let val = tableLookup t v2
       let newuid = case uid of
             Just (u, ul) -> Just (u, ul ++ [v2])
@@ -230,7 +234,8 @@ interpretPE' g l uid (v : _) (TableIndex y ys) = do
 -- Indexes a table. Adds the string value used to index the table into the value list, if this is a table access chain.
 interpretPE' g l uid (v : _) (DotIndex y ys) = do
   case v of
-    (TableVal _ t) -> do
+    (TableVal _ tRef) -> do
+      t <- readIORef tRef
       let val = tableLookup t (StringVal y)
       let newuid = case uid of
             Just (u, ul) -> Just (u, ul ++ [StringVal y])
@@ -246,7 +251,8 @@ interpretPE' g l _ (v : _) (CallArgs y ys) = do
     _ -> interpretPE' g2 l2 Nothing (v2 : vl2) ys
 interpretPE' g l _ (v:_) (MethodArgs n y ys) = do
   case v of
-      (TableVal uniq t) -> do
+      (TableVal uniq tRef) -> do
+        t <- readIORef tRef
         let fn = tableLookup t (StringVal n)
         (g2,l2,v2:vl2) <- interpretArgs g l fn (Just v) y
         case v2 of
@@ -283,7 +289,8 @@ interpretArgs g l v methodCaller (ArgString e) = do
 interpretArgs g l v methodCaller (ArgTable (TableConstructor fl)) = do
   (g2, l2, t) <- interpretFields g l fl
   tName <- newUnique
-  let tableVal = TableVal tName t
+  tRef <- newIORef t
+  let tableVal = TableVal tName tRef
   let vl = case methodCaller of
         Nothing -> [tableVal]
         Just self -> self : [tableVal]
@@ -343,8 +350,9 @@ interpretE g l TRIPLE_DOT = do
     Nothing -> error "tried to use varargs inside a non vararg function"
 interpretE g l (TableExpr (TableConstructor fl)) = do
   (g2, l2, t) <- interpretFields g l fl
+  tRef <- newIORef t
   tName <- newUnique
-  return (g2, l2, [TableVal tName t])
+  return (g2, l2, [TableVal tName tRef])
 interpretE g l (FunctionDef fb) = do
   let (FuncBody (ParamList (NameList nl) _) _) = fb
   let numArgs = length nl
@@ -429,7 +437,7 @@ interpretS g l (Asgn (VarList varl) el) = do
   -- In case there's void values here, turn them into nil
   let cleanVl = cleanVals vl
   (g3, l3, finalVarL) <- processVarL g2 l2 varl
-  let (g4, l4) = updateValues g3 l3 finalVarL cleanVl
+  (g4, l4) <- updateValues g3 l3 finalVarL cleanVl
   return (g4, l4, Nothing)
   where
     processVariable :: GlobalEnv -> Env -> Var -> IO (GlobalEnv, Env, Either Name (Unique, [Val]))
@@ -448,16 +456,20 @@ interpretS g l (Asgn (VarList varl) el) = do
       (g3, l3, vTail) <- processVarL g2 l2 vs
       return (g3, l3, v2 : vTail)
     processVarL g l [] = error "internal error"
-    updateValue :: GlobalEnv -> Env -> Either Name (Unique, [Val]) -> Val -> (GlobalEnv, Env)
+    updateValue :: GlobalEnv -> Env -> Either Name (Unique, [Val]) -> Val -> IO(GlobalEnv, Env)
     updateValue g l (Left n) v = case lookupVar g l n of
-        Just (Right _, _) -> insertVarLocal g l n v
-        _ -> (insertVarGlobal g n v,l)
-    updateValue g l (Right uid) v = updateTableVal g l uid v
-    updateValues :: GlobalEnv -> Env -> [Either Name (Unique, [Val])] -> [Val] -> (GlobalEnv, Env)
-    updateValues g l [] [] = (g, l)
-    updateValues g l [] _ = (g, l)
-    updateValues g l (x : xs) [] = let (g2, l2) = updateValue g l x NilVal in updateValues g2 l2 xs []
-    updateValues g l (x : xs) (y : ys) = let (g2, l2) = updateValue g l x y in updateValues g2 l2 xs ys
+        Just (Right _, _) -> return $ insertVarLocal g l n v
+        _ -> return (insertVarGlobal g n v,l)
+    updateValue g l (Right uid) v = updateTableVal g l uid v >> return (g,l)
+    updateValues :: GlobalEnv -> Env -> [Either Name (Unique, [Val])] -> [Val] -> IO(GlobalEnv, Env)
+    updateValues g l [] [] = return (g, l)
+    updateValues g l [] _ = return (g, l)
+    updateValues g l (x : xs) [] = do
+      (g2, l2) <- updateValue g l x NilVal 
+      updateValues g2 l2 xs []
+    updateValues g l (x : xs) (y : ys) = do 
+      (g2, l2) <- updateValue g l x y 
+      updateValues g2 l2 xs ys
 interpretS g l (Do b) = interpretB g l b
 interpretS g l (LocalAsgn (AttrNameList attrnL) mEl) = do
   let (nl, _) = unzip attrnL -- Note: attributes don't do anything yet
@@ -573,8 +585,8 @@ interpretS g l (FuncDefStat (FuncName n nl maybeN) (FuncBody (ParamList (NameLis
                 Just _ -> "self" : nlFn
                 Nothing -> nlFn
           let fn = luaFunc (FuncBody (ParamList (NameList newNl) varArg) b)
-          let (g2,l2) = updateTableVal g l (u, vl) (FuncVal uniq (length newNl) fn)
-          return (g2,l2,Nothing)
+          updateTableVal g l (u, vl) (FuncVal uniq (length newNl) fn)
+          return (g,l,Nothing)
       Just(env, v) -> do
           if not $ null vl then error $ "tried to index a non table value: " ++ show v
             else do

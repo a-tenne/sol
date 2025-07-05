@@ -7,6 +7,8 @@ import qualified Data.Text.ICU as ICU
 import Data.Unique (Unique, newUnique)
 import GHC.IO.Handle.Internals (wantReadableHandle)
 import Runtime.Types
+import Data.IORef (IORef, readIORef)
+import GHC.IORef (writeIORef)
 
 initialEnvVars :: IO (M.Map String Val)
 initialEnvVars = do
@@ -55,24 +57,30 @@ nameFromUnique g (Env varList _ parent) uniq = case fst <$> find (predicate uniq
   Nothing -> nameFromUnique g parent uniq
   x -> x
 
-updateTableVal :: GlobalEnv -> Env -> (Unique, [Val]) -> Val -> (GlobalEnv, Env)
+updateTableVal :: GlobalEnv -> Env -> (Unique, [Val]) -> Val -> IO()
 updateTableVal g l (uniq, vl) newV = case nameFromUnique g l uniq of
-  Nothing -> (g, l)
+  Nothing -> return ()
   -- Expects the value to be a table, mutates it and inserts it into the scope where it belongs
   Just n -> case getVar g l n of
-    (TableVal u t) -> insertVarLocal g l n (TableVal u (mutateTableVal t vl newV))
+    (TableVal u t) -> mutateTableVal t vl newV
     _ -> error "internal error"
   where
-    mutateTableVal :: Table -> [Val] -> Val -> Table
+    mutateTableVal :: IORef Table -> [Val] -> Val -> IO()
     -- Base case: the list only has one index value left, so we update the table with it
-    mutateTableVal t [v] newV = tableInsert t v newV
+    mutateTableVal tRef [v] newV = do
+      t <- readIORef tRef
+      let tNew = tableInsert t v newV
+      writeIORef tRef tNew
     -- We check if the key exists within the given table. If the key does not exist or is not a table
     -- we throw an error. If it is, we insert the new, mutated table into that old spot.
     -- since it calls itself recursively within the constructor, it updates the actual value we want
     -- to update and all upper values
-    mutateTableVal (Table m) (v : vs) newV = case M.lookup v m of
-      Just (TableVal u t) -> tableInsert (Table m) v (TableVal u (mutateTableVal t vs newV))
-      _ -> error "internal error"
+    mutateTableVal tRef (v : vs) newV = do
+      (Table m) <- readIORef tRef
+      case M.lookup v m of
+        Just (TableVal _ tRef2) -> do
+          mutateTableVal tRef2 vs newV
+        _ -> error "internal error"
     -- The value list can never be empty.
     mutateTableVal _ [] _ = error "internal error"
 
