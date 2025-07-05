@@ -24,50 +24,50 @@ opMulti strs opers = do
 opSingle :: (Show a, Eq a) => String -> a -> Parser a
 opSingle x y = string x >> return y
 
--- | Parses the `or` operator.
+-- | Parses the @or@ operator.
 oper1 :: Parser BIN_OP
 oper1 = opSingle "or" OR
 
--- | Parses the `and` operator.
+-- | Parses the @and@ operator.
 oper2 :: Parser BIN_OP
 oper2 = opSingle "and" AND
 
--- | Parses one of the following operators: `<=`, `>=`, `<`, `>`, `~=`, `==`.
+-- | Parses one of the following operators: @<=@, @>=@, @<@, @>@, @~=@, @==@
 oper3 :: Parser BIN_OP
 oper3 = opMulti ["<=", ">=", "<", ">", "~=", "=="] [LE, GE, LT, GT, NE, EQ]
 
--- | Parses the `|` operator.
+-- | Parses the @|@ operator.
 oper4 :: Parser BIN_OP
 oper4 = opSingle "|" B_OR
 
--- | Parses the `~` operator.
+-- | Parses the @~@ operator.
 oper5 :: Parser BIN_OP
 oper5 = opSingle "~" B_XOR
 
--- | Parses the `&` operator.
+-- | Parses the @&@ operator.
 oper6 :: Parser BIN_OP
 oper6 = opSingle "&" B_AND
 
--- | Parses one of the following operators: `<<`, `>>`.
+-- | Parses one of the following operators: @<<@, @>>@
 oper7 :: Parser BIN_OP
 oper7 = opMulti ["<<", ">>"] [LSHIFT, RSHIFT]
 
--- | Parses the `..` operator.
+-- | Parses the @..@ operator
 oper8 :: Parser BIN_OP
 oper8 = opSingle ".." CONCAT
 
--- | Parses one of the following operators: `+`, `-`.
+-- | Parses one of the following operators: @+@, @-@
 oper9 :: Parser BIN_OP
 oper9 = opMulti ["+", "-"] [PLUS, MINUS]
 
--- | Parses one of the following operators: `*`, `//`, `/`, `%`.
+-- | Parses one of the following operators: @*@, @//@, @/@, @%@
 oper10 :: Parser BIN_OP
 oper10 = opMulti ["*", "//", "/", "%"] [MULT, INT_DIV, DIV, MOD]
 
--- | Parses one of the following (unary) operators: `not`, `#`, `-`, `+`.
+-- | Parses one of the following (unary) operators: @not@, @#@, @-@, @+@
 oper11 :: Parser U_OP
 oper11 = opMulti ["not ", "#", "-", "~"] [U_NOT, U_LEN, U_MINUS, U_B_NOT]
 
--- | Parses the `^` operator.
+-- | Parses the @^@ operator.
 oper12 :: Parser BIN_OP
 oper12 = opSingle "^" EXP

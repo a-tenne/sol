@@ -46,7 +46,7 @@ multiLineStr =
     str <- manyTill anyChar (string $ "]" ++ levelStr ++ "]")
     return $ LiteralExpr (StringLit str)
 
--- | A helper function that is used to check if a value is a literal or an identifier.
+-- | A helper function that is used to check if a value is a literal or an identifier. If it's an identifier, it fails.
 litHelper :: String -> Expr -> Parser Expr
 litHelper litName exType = do
   void $ string litName
@@ -60,19 +60,19 @@ litHelper litName exType = do
         else fail $ "Expected: " ++ litName
     else return exType
 
--- | Parses the the varargs symbol `...`
+-- | Parses the the varargs symbol @...@
 tripleDot :: Parser Expr
 tripleDot = litHelper "..." TRIPLE_DOT
 
--- | Parses the `true` literal.
+-- | Parses the @true@ literal.
 trueEx :: Parser Expr
 trueEx = litHelper "true" TRUE
 
--- | Parses the `false` literal.
+-- | Parses the @false@ literal.
 falseEx :: Parser Expr
 falseEx = litHelper "false" FALSE
 
--- | Parses the `nil` literal.
+-- | Parses the @nil@ literal.
 nilEx :: Parser Expr
 nilEx = litHelper "nil" NIL
 
@@ -84,7 +84,7 @@ literalExpr = skipJunk >> (try num <|> try singleLineStr <|> try multiLineStr <|
 ex1 :: Parser Expr
 ex1 = skipJunk >> ex2 >>= ex1'
 
--- | Tries parsing a binary expression with the "or" operator `or`. Returns its left side on failure.
+-- | Tries parsing a binary expression with the "or" operator @or@. Returns its left side on failure.
 ex1' :: Expr -> Parser Expr
 ex1' l = do
   skipJunk
@@ -100,7 +100,7 @@ ex1' l = do
 ex2 :: Parser Expr
 ex2 = skipJunk >> ex3 >>= ex2'
 
--- | Tries parsing a binary expression with the "and" operator `and`. Returns its left side on failure.
+-- | Tries parsing a binary expression with the "and" operator @and@. Returns its left side on failure.
 ex2' :: Expr -> Parser Expr
 ex2' l = do
   skipJunk
@@ -116,7 +116,7 @@ ex2' l = do
 ex3 :: Parser Expr
 ex3 = skipJunk >> ex4 >>= ex3'
 
--- | Tries parsing a binary expression with the comparison operators `<=`, `>=`, `<`, `>`, `~=`, and `==`. Returns its left side on failure.
+-- | Tries parsing a binary expression with the comparison operators @<=@, @>=@, @<@, @>@, @~=@, and @==@. Returns its left side on failure.
 ex3' :: Expr -> Parser Expr
 ex3' l = do
   skipJunk
@@ -132,7 +132,7 @@ ex3' l = do
 ex4 :: Parser Expr
 ex4 = skipJunk >> ex5 >>= ex4'
 
--- | Tries parsing a binary expression with the binary "or" operator `|`. Returns its left side on failure.
+-- | Tries parsing a binary expression with the binary "or" operator @|@. Returns its left side on failure.
 ex4' :: Expr -> Parser Expr
 ex4' l = do
   skipJunk
@@ -148,10 +148,11 @@ ex4' l = do
 ex5 :: Parser Expr
 ex5 = skipJunk >> ex6 >>= ex5'
 
--- | Tries parsing a binary expression with the binary "xor" operator `~`. Returns its left side on failure.
+-- | Tries parsing a binary expression with the binary "xor" operator @~@. Returns its left side on failure.
 ex5' :: Expr -> Parser Expr
 ex5' l = do
   skipJunk
+  -- We have to check if the next symbol would be a ~=, because it's lower precedence and it might get parsed wrongly here.
   check <- checkSingle "~"
   check2 <- checkSingle "~="
   if not check || check2
@@ -165,7 +166,7 @@ ex5' l = do
 ex6 :: Parser Expr
 ex6 = skipJunk >> ex7 >>= ex6'
 
--- | Tries parsing a binary expression with the binary "and" operator `&`. Returns its left side on failure.
+-- | Tries parsing a binary expression with the binary "and" operator @&@. Returns its left side on failure.
 ex6' :: Expr -> Parser Expr
 ex6' l = do
   skipJunk
@@ -181,7 +182,7 @@ ex6' l = do
 ex7 :: Parser Expr
 ex7 = skipJunk >> ex8 >>= ex7'
 
--- | Left associative parser for expressions with the bitshift operators `<<` and `>>`
+-- | Left associative parser for expressions with the bitshift operators @<<@ and @>>@
 ex7' :: Expr -> Parser Expr
 ex7' l = do
   skipJunk
@@ -197,7 +198,7 @@ ex7' l = do
 ex8 :: Parser Expr
 ex8 = skipJunk >> ex9 >>= ex8'
 
--- | Tries parsing a binary expression with the right associative concat operator `..`. Returns its left side on failure.
+-- | Tries parsing a binary expression with the right associative concat operator @..@. Returns its left side on failure.
 ex8' :: Expr -> Parser Expr
 ex8' l = do
   skipJunk
@@ -213,7 +214,7 @@ ex8' l = do
 ex9 :: Parser Expr
 ex9 = skipJunk >> ex10 >>= ex9'
 
--- | Tries parsing a binary expression with the arithmetic operators `+` and `-`. Returns its left side on failure.
+-- | Tries parsing a binary expression with the arithmetic operators @+@ and @-@. Returns its left side on failure.
 ex9' :: Expr -> Parser Expr
 ex9' l = do
   skipJunk
@@ -229,7 +230,7 @@ ex9' l = do
 ex10 :: Parser Expr
 ex10 = skipJunk >> ex11 >>= ex10'
 
--- | Tries parsing a binary expression with the arithmetic operators `*`, `/`, `//` and `%`. Returns its left side on failure.
+-- | Tries parsing a binary expression with the arithmetic operators @*@, @/@, @//@ and @%@. Returns its left side on failure.
 ex10' :: Expr -> Parser Expr
 ex10' l = do
   skipJunk
@@ -241,7 +242,7 @@ ex10' l = do
       r <- ex11
       ex10' $ BinExpr l op r
 
--- | Tries parsing a unary expression with the operators `not`, `#`, `-` and `~`. Returns its left side on failure.
+-- | Tries parsing a unary expression with the operators @not@, @#@, @-@ and @~@. Parses ex12 on failure.
 ex11 :: Parser Expr
 ex11 = do
   skipJunk
@@ -257,7 +258,7 @@ ex12 = do
   l <- try literalExpr <|> try preEx <|> try tableEx <|> try functionDef
   ex12' l
 
--- | Tries parsing a binary expression with the right associative exponent operator `^`.Returns its left side on failure.
+-- | Tries parsing a binary expression with the right associative exponent operator @^@. Returns its left side on failure.
 ex12' :: Expr -> Parser Expr
 ex12' l = do
   skipJunk
@@ -269,7 +270,7 @@ ex12' l = do
       r <- (try literalExpr <|> try preEx <|> try tableEx <|> try functionDef) >>= ex12'
       return $ BinExpr l op r
 
--- | Parses a subexpression: (`exp`)
+-- | Parses a subexpression: (@exp@)
 subEx :: Parser Expr
 subEx = do
   skipJunk
@@ -330,16 +331,21 @@ prefixEx' = do
     else do
       skipJunk
       nextChar <- peekChar
+      -- The concat symbol might get parsed as a single dot if we're not careful.
       isConcat <- checkSingle ".."
       if isConcat
         then return PrefixEmpty
         else case nextChar of
+          -- First case can be either a table index or a multi line string, that's why we try callArgs.
           '[' -> try tableIndex <|> try callArgs
           '.' -> dotIndex
           '(' -> callArgs
+          -- Table constructor incoming.
           '{' -> callArgs
+          -- String literals
           '"' -> callArgs
           '\'' -> callArgs
+
           ':' -> methodArgs
           _ -> return PrefixEmpty
 

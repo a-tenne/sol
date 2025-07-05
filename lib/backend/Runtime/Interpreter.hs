@@ -19,18 +19,25 @@ import Runtime.Types
 import Text.Parsec (parse)
 import Data.IORef (readIORef, newIORef)
 
+-- | Turns an AST literal into a runtime value.
+--  Note that int64 values are turned into float64.
+--  This might get changed in the future, since it does not comply with the Lua standard.
 valFromLiteral :: Literal -> Val
 valFromLiteral (StringLit x) = StringVal x
 valFromLiteral (NumLit (NumDouble x)) = NumVal x
 valFromLiteral (NumLit (NumInt x)) = NumVal $ fromIntegral x
 
+-- | Coerces a string to a number value. Calls the num parser from the frontend to do so.
 coerce :: String -> Val
 coerce str = case parse num "" str of
   Left _ -> error $ "attempt to coerce string " ++ show str ++ " to a number"
   Right (LiteralExpr x) -> valFromLiteral x
 
+-- | The binary operation function signature.
 type BinFn = GlobalEnv -> Env -> Val -> Val -> IO (GlobalEnv, Env, Val)
 
+-- | Takes in a arithmetic operation on doubles and applies it to both values.
+--  If one of the values is not a string or a number, this function will fail.
 arith :: (Double -> Double -> Double) -> BinFn
 arith fn g l (NumVal x) (NumVal y) = return (g, l, NumVal $ fn x y)
 arith fn g l (StringVal x) (NumVal y) = return (g, l, NumVal $ fn a y)
@@ -45,6 +52,8 @@ arith fn g l (StringVal x) (StringVal y) = return (g, l, NumVal $ fn a b)
     (NumVal b) = coerce y
 arith _ _ _ x y = error $ "tried to perform illegal arithmetic operation between " ++ show x ++ " and " ++ show y
 
+-- | Performs @floor@ division on two values and returns the result.
+--  If one of the values is not a string or a number, this function will fail.
 intDiv :: BinFn
 intDiv g l (NumVal x) (NumVal y) = return (g, l, NumVal $ fromIntegral $ floor (x / y))
 intDiv g l (StringVal x) (NumVal y) = return (g, l, NumVal $ fromIntegral $ floor (a / y))
@@ -59,55 +68,73 @@ intDiv g l (StringVal x) (StringVal y) = return (g, l, NumVal $ fromIntegral $ f
     (NumVal b) = coerce y
 intDiv _ _ x y = error $ "tried to perform illegal arithmetic operation between " ++ show x ++ " and " ++ show y
 
+-- | Performs string concatenation on two values and returns the result.
+--  If one of the values is not a string or a number, this function will fail.
 valConcat :: BinFn
-valConcat g l (StringVal x) (StringVal y) = return (g, l, StringVal $ show (StringVal x) ++ show (StringVal y))
-valConcat g l (StringVal x) (NumVal y) = return (g, l, StringVal $ show (StringVal x) ++ show (NumVal y))
-valConcat g l (NumVal x) (StringVal y) = return (g, l, StringVal $ show (NumVal x) ++ show (StringVal y))
+valConcat g l (StringVal x) (StringVal y) = return (g, l, StringVal $ show x ++ show y)
+valConcat g l (StringVal x) (NumVal y) = return (g, l, StringVal $ show x ++ show (NumVal y))
+valConcat g l (NumVal x) (StringVal y) = return (g, l, StringVal $ show (NumVal x) ++ show y)
 valConcat g l (NumVal x) (NumVal y) = return (g, l, StringVal $ show (NumVal x) ++ show (NumVal y))
 valConcat _ _ x y = error $ "tried to perform illegal concatenation between " ++ show x ++ " and " ++ show y
 
+-- | Performs an @and@ operation on two values. 
+--  If the first value is truthy, it returns the second one.
+--  If not, it returns the first one.
 valAnd :: BinFn
 valAnd g l (BoolVal True) x = return (g, l, x)
 valAnd g l (BoolVal False) _ = return (g, l, BoolVal False)
 valAnd g l NilVal _ = return (g, l, NilVal)
 valAnd g l _ x = return (g, l, x)
 
+-- | Performs an @or@ operation on two values. 
+--  Returns the first value if it's truthy, if not it returns the second one.
 valOr :: BinFn
 valOr g l (BoolVal True) _ = return (g, l, BoolVal True)
 valOr g l (BoolVal False) x = return (g, l, x)
 valOr g l NilVal x = return (g, l, x)
 valOr g l x _ = return (g, l, x)
 
+-- | Compares two values for equality and returns the result.
 valEq :: BinFn
 valEq g l x y = return (g, l, BoolVal $ x == y)
 
+-- | Compares two values for inequality and returns the result.
 valNe :: BinFn
 valNe g l x y = return (g, l, BoolVal $ x /= y)
 
-numComp :: (Double -> Double -> Bool) -> BinFn
-numComp fn g l (NumVal x) (NumVal y) = return (g, l, BoolVal $ fn x y)
-numComp _ _ _ x y = error $ "tried to perform illegal comparison between " ++ show x ++ " and " ++ show y
+-- | Generalized comparison function between two numbers.
+numOrd :: (Double -> Double -> Bool) -> BinFn
+numOrd fn g l (NumVal x) (NumVal y) = return (g, l, BoolVal $ fn x y)
+numOrd _ _ _ x y = error $ "tried to perform illegal comparison between " ++ show x ++ " and " ++ show y
 
+-- | Generalized comparison function between two strings. 
+--  Compares based on locale.
 strOrd :: GlobalEnv -> Ordering -> Val -> Val -> Bool
 strOrd g ord (StringVal x) (StringVal y) = collate (collator g) (pack x) (pack y) == ord
 strOrd _ _ x y = error $ "tried to perform illegal comparison between " ++ show x ++ " and " ++ show y
 
+-- | Checks if the first value is greater than the second and returns the result.
 valGt :: BinFn
 valGt g l (StringVal x) (StringVal y) = return (g, l, BoolVal $ strOrd g Prelude.GT (StringVal x) (StringVal y))
-valGt g l x y = numComp (>) g l x y
+valGt g l x y = numOrd (>) g l x y
 
+-- | Checks if the first value is less than the second and returns the result.
 valLt :: BinFn
 valLt g l (StringVal x) (StringVal y) = return (g, l, BoolVal $ strOrd g Prelude.LT (StringVal x) (StringVal y))
-valLt g l x y = numComp (<) g l x y
+valLt g l x y = numOrd (<) g l x y
 
+-- | Checks if the first value is greater than or equals the second and returns the result.
 valGe :: BinFn
 valGe g l (StringVal x) (StringVal y) = return (g, l, BoolVal $ strOrd g Prelude.GT (StringVal x) (StringVal y) || strOrd g Prelude.EQ (StringVal x) (StringVal y))
-valGe g l x y = numComp (>=) g l x y
+valGe g l x y = numOrd (>=) g l x y
 
+-- | Checks if the first value is less than or equals the second and returns the result.
 valLe :: BinFn
 valLe g l (StringVal x) (StringVal y) = return (g, l, BoolVal $ strOrd g Prelude.GT (StringVal x) (StringVal y) || strOrd g Prelude.EQ (StringVal x) (StringVal y))
-valLe g l x y = numComp (<=) g l x y
+valLe g l x y = numOrd (<=) g l x y
 
+-- | Performs modulo division on two values and returns the result.
+--  If one of the values is not a string or a number, this function will fail.
 valMod :: BinFn
 valMod g l (NumVal x) (NumVal y) = return (g, l, NumVal $ fromIntegral $ floor x `mod` floor y)
 valMod g l (StringVal x) (NumVal y) = return (g, l, NumVal $ fromIntegral $ floor a `mod` floor y)
@@ -122,31 +149,44 @@ valMod g l (StringVal x) (StringVal y) = return (g, l, NumVal $ fromIntegral $ f
     (NumVal b) = coerce y
 valMod _ _ x y = error $ "tried to perform illegal arithmetic operation between " ++ show x ++ " and " ++ show y
 
+-- | Performs a binary @and@ operation on two values and returns the result.
+--  If one of the values is not a number, this function will fail.
 valBAnd :: BinFn
 valBAnd g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x .&. coerceToWord y)
 valBAnd _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
+-- | Performs a binary @or@ operation on two values and returns the result.
+--  If one of the values is not a number, this function will fail.
 valBOr :: BinFn
 valBOr g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x .|. coerceToWord y)
 valBOr _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
+-- | Performs a binary @xor@ operation on two values and returns the result.
+--  If one of the values is not a number, this function will fail.
 valBXor :: BinFn
 valBXor g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x `xor` coerceToWord y)
 valBXor _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
+-- | Bitshifts the left value to the left by the amount given by floored second value.
+--  If one of the values is not a number, this function will fail.
 valLshift :: BinFn
 valLshift g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x `shiftL` floor y)
 valLshift _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
+-- | Bitshifts the left value to the right by the amount given by floored second value.
+--  If one of the values is not a number, this function will fail.
 valRshift :: BinFn
 valRshift g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x `shiftR` floor y)
 valRshift _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
 
+-- | Checks if a value is truthy.
+--  All values are truthy except for nil and false.
 valIsTrue :: Val -> Bool
 valIsTrue (BoolVal False) = False
 valIsTrue NilVal = False
 valIsTrue _ = True
 
+-- | Returns the correct binary operation function based on the given AST operator.
 binOpToFn :: GlobalEnv -> Env -> BIN_OP -> BinFn
 binOpToFn g l op = case op of
   OR -> valOr
@@ -171,13 +211,17 @@ binOpToFn g l op = case op of
   MOD -> valMod
   EXP -> arith (**)
 
+-- | The unary operation function signature.
 type UnFn = GlobalEnv -> Env -> Val -> IO (GlobalEnv, Env, Val)
 
+-- | Turns a truthy value into a false and non-truthy values into true.
 valUNot :: UnFn
 valUNot g l (BoolVal False) = return (g, l, BoolVal True)
 valUNot g l NilVal = return (g, l, BoolVal True)
 valUNot g l _ = return (g, l, BoolVal False)
 
+-- | Negates the given value.
+--  If the value is not a string or a number, this function will fail.
 valUMinus :: UnFn
 valUMinus g l (NumVal x) = return (g, l, NumVal (-x))
 valUMinus g l (StringVal x) = return (g, l, NumVal (-a))
@@ -185,16 +229,21 @@ valUMinus g l (StringVal x) = return (g, l, NumVal (-a))
     (NumVal a) = coerce x
 valUMinus _ _ x = error $ "tried to perform illegal operation -(" ++ show x ++ ")"
 
+-- | Returns the length of the given table.
+--  If the value is not a table, this function will fail.
 valULen :: UnFn
 valULen g l (TableVal _ tRef) = do
   (Table m) <- readIORef tRef
   return (g, l, NumVal $ fromIntegral $ length m)
 valULen _ _ x = error $ "tried to perform a length operation on a non table value: " ++ show x
 
+-- | Performs a bitwise @not@ on the given value.
+--  If the value is not a number, this function will fail.
 valUBNot :: UnFn
 valUBNot g l (NumVal x) = return (g, l, NumVal $ fromIntegral $ complement $ coerceToWord x)
 valUBNot _ _ x = error $ "tried to perform illegal operation ~(" ++ show x ++ ")"
 
+-- | Returns the correct unary operation function based on the given AST operator.
 unOpToFn :: U_OP -> UnFn
 unOpToFn op = case op of
   U_NOT -> valUNot
@@ -202,6 +251,9 @@ unOpToFn op = case op of
   U_LEN -> valULen
   U_B_NOT -> valUBNot
 
+-- | Interprets a prefix expression.
+--  Returns the new global and local environment, as well as the value list result.
+--  If the prefix expression ended in a table access, returns the table's id and access chain.
 interpretPE :: GlobalEnv -> Env -> PrefixExpr -> IO (GlobalEnv, Env, Maybe (Unique, [Val]), [Val])
 -- Evaluates the subexpression. If it's a table, passes down the table identifier to the next function
 interpretPE g l (PrefixSub y ys) = do
@@ -210,13 +262,16 @@ interpretPE g l (PrefixSub y ys) = do
     ((TableVal u _) : _) -> interpretPE' g2 l2 (Just (u, [])) vl ys
     _ -> interpretPE' g2 l2 Nothing vl ys
 
--- Gets the variable assigned to the name expression or nil. If it's a table, passes down the table identifier to the next function
+-- Gets the variable assigned to the name expression or nil. If it's a table, passes down the table id to the next function
 interpretPE g l (PrefixName y ys) = do
   let v = getVar g l y
   case v of
     (TableVal u _) -> interpretPE' g l (Just (u, [])) [v] ys
     _ -> interpretPE' g l Nothing [v] ys
 
+-- | Interprets the suffix of a prefix expression.
+--  Returns the new global and local environment, as well as the value list result.
+--  If the prefix expression ended in a table access, returns the table's id and access chain.
 interpretPE' :: GlobalEnv -> Env -> Maybe (Unique, [Val]) -> [Val] -> PrefixExpr' -> IO (GlobalEnv, Env, Maybe (Unique, [Val]), [Val])
 -- Indexes a table. Adds the value used to index the table into the value list, if this is a table access chain.
 interpretPE' g l uid (v : _) (TableIndex y ys) = do
@@ -262,7 +317,10 @@ interpretPE' g l _ (v:_) (MethodArgs n y ys) = do
 
 interpretPE' g l uid vl PrefixEmpty = return (g, l, uid, vl)
 
--- Check if input value is a function. If it is, create a new environment
+-- | Interprets function call arguments.
+--  Checks if the input value is a function. If it is, creates a new local environment and executes the function.
+--  If not, it fails.
+--  Returns the new global and local environment, as well as the value list result.
 interpretArgs :: GlobalEnv -> Env -> Val -> Maybe Val -> Args -> IO (GlobalEnv, Env, [Val])
 interpretArgs g l v methodCaller (ArgList el) = do
   (g2, l2, vl) <- interpretEL g l el
@@ -299,6 +357,9 @@ interpretArgs g l v methodCaller (ArgTable (TableConstructor fl)) = do
     _ -> error $ show v ++ " is not a function."
   return (g3, l2, vl2)
 
+-- | Helper function for interpretFields.
+--  The first iteration takes in an empty table and each call adds an entry to it, based on the field.
+--  Returns the filled table, as well as the new global and local environment.
 interpretFieldsHelper :: GlobalEnv -> Env -> Table -> [Field] -> IO (GlobalEnv, Env, Table)
 interpretFieldsHelper g l t [] = return (g, l, t)
 interpretFieldsHelper g l (Table m) (x : xs) = do
@@ -320,11 +381,14 @@ interpretFieldsHelper g l (Table m) (x : xs) = do
       Just _ -> getNextFreeIndex (Table m) (i + 1)
       Nothing -> i
 
+-- | Creates a new table, processes the fields and returns the resulting filled table, as well as the new global and local environment.
 interpretFields :: GlobalEnv -> Env -> [Field] -> IO (GlobalEnv, Env, Table)
 interpretFields g l fl = do
   let t = Table M.empty
   interpretFieldsHelper g l t fl
 
+-- | Interprets a Lua expression from the AST.
+--  Returns the new global and local environment, as well as the value list result.
 interpretE :: GlobalEnv -> Env -> Expr -> IO (GlobalEnv, Env, [Val])
 interpretE g l (BinExpr a op b) = do
   (g2, l2, a2 : _) <- interpretE g l a
@@ -359,6 +423,8 @@ interpretE g l (FunctionDef fb) = do
   uniq <- newUnique
   return (g, l, [FuncVal uniq numArgs (luaFunc fb)])
 
+-- | Interprets a list of Lua expressions.
+--  Returns the new global and local environment, as well as the value list result.
 interpretEL :: GlobalEnv -> Env -> ExprList -> IO (GlobalEnv, Env, [Val])
 interpretEL g l (ExprList []) = return (g, l, [])
 interpretEL g l (ExprList (x : xs)) = do
@@ -366,14 +432,18 @@ interpretEL g l (ExprList (x : xs)) = do
   (g3, l3, vl2) <- interpretEL g2 l2 (ExprList xs)
   return (g3, l3, vl1 ++ vl2)
 
+-- | Interprets the entire program, i.e. the AST.
 interpret :: AST -> IO ()
 interpret (AST ch) = interpretCh ch
 
+-- | Interprets a Lua chunk.
 interpretCh :: Chunk -> IO ()
 interpretCh (Chunk b) = do
   g <- initialEnv
   void $ interpretB g EnvEmpty b
 
+-- | Interprets a Lua block, its statement list and its @return@ value.
+--  Returns the new global and local environment, as well as an value list result, in case there was a @return@ statement.
 interpretB :: GlobalEnv -> Env -> Block -> IO (GlobalEnv, Env, Maybe [Val])
 interpretB g l (Block sl rs) = do
   (g2, l2, ret) <- interpretSL g l sl
@@ -389,12 +459,13 @@ interpretB g l (Block sl rs) = do
       -- Case: We have no return whatsoever
       Nothing -> return (g2, l2, Nothing)
 
--- Take in the global and local environments, process that list of statements.
--- If there is a "return" statement at any point, and only then, the last element
--- of the tuple becomes "Just [Val]" and at that point, the stack must be unwinded
+-- | Interprets a list of statements.
+--  If there is a @return@ or @break@ statement at any point, the last element
+--  of the tuple becomes a Just [Val] and at that point, the stack must be unwinded.
+--  Returns the new global and local environment, as well as an value list result, in case there was a @return@ statement.
 interpretSL :: GlobalEnv -> Env -> StatList -> IO (GlobalEnv, Env, Maybe [Val])
 interpretSL g l (AST.StatList []) = return (g, l, Nothing)
--- Returns VoidVal so the stack unwinds.
+-- Returns VoidVal so the stack unwinds. Otherwise it wouldn't break out of a loop.
 interpretSL g l (AST.StatList (Break : _)) = return (g, l, Just [VoidVal])
 -- Discards the rest of the SL, SL in label becomes new SL
 interpretSL g l (AST.StatList ((Goto n) : _)) = do
@@ -428,6 +499,12 @@ interpretSL g l (AST.StatList (x : xs)) = do
     Nothing -> interpretSL g2 l2 (AST.StatList xs)
     Just _ -> return (g2, l2, ret)
 
+
+-- | Interprets a Lua statement.
+--  If there is a @return@ statement at any point, the last element
+--  of the tuple becomes a Just [Val] and at that point, the stack must be unwinded.
+--  Returns the new global and local environment, as well as an value list result, in case there was a @return@ or @break@ statement.
+--  Since it's not possible to process a @label@, @goto@ or @break@ statement at this level, trying to do so throws an error.
 interpretS :: GlobalEnv -> Env -> Stat -> IO (GlobalEnv, Env, Maybe [Val])
 -- Semicolons are NO-OP
 interpretS g l Semic = return (g, l, Nothing)
@@ -496,7 +573,7 @@ interpretS g l (ForStat n e1 e2 me b) = do
     Nothing -> return (g3, l3, [NumVal 1])
   assertNumber start >> assertNumber end >> assertNumber incr
   -- insert index into env
-  let (g5, l5) = insertVarCurrent g4 (newLocalEnv (Just l4)) n start
+  let (g5, l5) = insertVarCurrent g4 (newLocalEnv l4) n start
   -- run loop
   -- Note: the loop creates an own environment on each iteration
   (g6, l6, ret) <- forIter g5 l5 n end incr b
@@ -514,7 +591,7 @@ interpretS g l (WhileDo e b) = do
   (g2, l2, v : _) <- interpretE g l e
   if valIsTrue v
     then do
-      let loopEnv = newLocalEnv (Just l2)
+      let loopEnv = newLocalEnv l2
       (g3, loopEnv2, ret) <- interpretB g2 loopEnv b
       let l3 = case getParent loopEnv2 of
             Just x -> x
@@ -525,7 +602,7 @@ interpretS g l (WhileDo e b) = do
     else
       return (g2, l2, Nothing)
 interpretS g l (RepeatUntil b e) = do
-  let loopEnv = newLocalEnv (Just l)
+  let loopEnv = newLocalEnv l
   (g2, loopEnv2, ret) <- interpretB g loopEnv b
   let l2 = case getParent loopEnv2 of
         Just x -> x
@@ -551,7 +628,7 @@ interpretS g l (IfStat cond1 b (ElseIfList elifl) mElse) = do
   where
     interpretIfBlock :: GlobalEnv -> Env -> Block -> IO(GlobalEnv, Env, Maybe [Val])
     interpretIfBlock g l b = do
-      let ifEnv = newLocalEnv (Just l)
+      let ifEnv = newLocalEnv l
       (g2,ifEnv2,retStat) <- interpretB g ifEnv b
       let l2 = fromMaybe EnvEmpty $ getParent ifEnv2
       return (g2,l2,retStat)
@@ -606,8 +683,6 @@ interpretS g l (FuncDefStat (FuncName n nl maybeN) (FuncBody (ParamList (NameLis
               let g2 = insertVarGlobal g n (FuncVal uniq (length nlFn) fn)
               return (g2,l,Nothing)
 
-
-
 interpretS g l (LocalFuncStat n fb) = do
   let fn = luaFunc fb
   let (FuncBody (ParamList (NameList nl) _) _) = fb
@@ -619,14 +694,16 @@ interpretS _ _ Break = error "Internal error: a break should be handled in state
 interpretS _ _ (Label _) = error "Internal error: a label should be handled in statement list processing"
 interpretS _ _ (Goto _) = error "Internal error: a goto should be handled in statement list processing"
 
--- | Regular for loop iteration
+-- | Regular for loop iteration.
+-- The loop is broken if there as a @return@ @or@ @break@ statement found at any point.
+-- Returns the new global and local environment, as well as an value list result, in case there was a @return@ statement.
 forIter :: GlobalEnv -> Env -> Name -> Val -> Val -> Block -> IO (GlobalEnv, Env, Maybe [Val])
 forIter g l n (NumVal end) (NumVal incr) b
   -- end condition
   | current > end = return (g, l, Nothing)
   | otherwise = do
       -- create loop environment
-      let loopEnv = newLocalEnv (Just l)
+      let loopEnv = newLocalEnv l
       -- interpret block
       (g2, loopEnv2, ret) <- interpretB g loopEnv b
       -- get updated parent env
@@ -645,11 +722,12 @@ forIter g l n (NumVal end) (NumVal incr) b
     -- Note that we can use getVal here, because we know it exists within the environment.
     (NumVal current) = getVar g l n
 
--- | Template for creating a lua function at runtime
+-- | Template for creating a lua function at runtime.
+--  Any function without an explicit @return@ statement will return [VoidVal]
 luaFunc :: FuncBody -> LuaFunc
 luaFunc (FuncBody (ParamList (NameList nl) varArg) b) g l vl = do
   let paramLen = length nl
-  let funcEnv = newLocalEnv (Just l)
+  let funcEnv = newLocalEnv l
   let (g2, funcEnv2) = insertVarsCurrent g funcEnv nl (take paramLen vl)
   let funcEnv3 = case varArg of
         Just _ -> insertVarArgs funcEnv2 $ drop paramLen vl

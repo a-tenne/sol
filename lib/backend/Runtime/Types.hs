@@ -11,11 +11,16 @@ import GHC.IO (unsafePerformIO)
 import GHC.StableName (hashStableName, makeStableName)
 import Data.IORef
 
+-- | Represents the table data structure, which maps values to other values.
 data Table where
   Table :: (Map Val Val) -> Table
 
+-- | Represents values of the lua language.
+--  VoidVal and LabelVal are values that technically don't exist, so accessing them illegally with result in an internal error.
+--  Note that tables and functions are tagged with a Unique identifier, to be able to compare them and table values are IORef, so we can modify in place.
 data Val = StringVal String | NumVal Double | BoolVal Bool | NilVal | VoidVal | FuncVal Unique Int LuaFunc | TableVal Unique (IORef Table) | LabelVal StatList
 
+-- | Assigns each value a number. Only needed to be able to order them.
 constructorTag :: Val -> Int
 constructorTag (StringVal _) = 0
 constructorTag (NumVal _) = 1
@@ -32,6 +37,7 @@ instance Ord Val where
       Prelude.EQ -> compareSame x y
       ord -> ord
 
+-- | Comparator function for the Val data type.
 compareSame :: Val -> Val -> Ordering
 compareSame (StringVal x) (StringVal y) = compare x y
 compareSame (NumVal x) (NumVal y) = compare x y
@@ -60,11 +66,14 @@ instance Show Val where
   show (BoolVal x) = map toLower $ show x
   show NilVal = "nil"
   show VoidVal = error "internal error: attempt to show void value"
+  show (LabelVal _) = error "internal error: attempt to show label value"
   show (FuncVal x _ _) = "function: " ++ show (hashUnique x)
   show (TableVal x _) = "table: " ++ show (hashUnique x)
 
+-- | The internal lua function signature, used by both native and user created functions.
 type LuaFunc = GlobalEnv -> Env -> [Val] -> IO (GlobalEnv, Env, [Val])
 
+-- | Represents the global environment of the runtime. Holds a map of strings(identifiers) to values and a collator to be able to compare strings with locale.
 data GlobalEnv = GlobalEnv {vars :: Map String Val, collator :: Collator}
 
 instance Show GlobalEnv where
@@ -73,5 +82,8 @@ instance Show GlobalEnv where
 instance Eq GlobalEnv where
   x == y = vars x == vars y
 
+-- | Represents a local environment, i.e. a local scope.
+--  Contains a map of identifier strings to values, optional varargs and its parent environment, which is another Env.
+--  Will be EnvEmpty on the global scope.
 data Env = Env (Map String Val) (Maybe [Val]) Env | EnvEmpty
   deriving (Eq, Show)
