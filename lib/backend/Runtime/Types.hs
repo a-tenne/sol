@@ -61,7 +61,7 @@ instance Eq Val where
   _ == _ = False
 
 instance Show Val where
-  show (StringVal x) = x
+  show (StringVal x) = show x
   show (NumVal x) = if fromIntegral (round x) == x then show $ round x else show x
   show (BoolVal x) = map toLower $ show x
   show NilVal = "nil"

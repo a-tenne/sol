@@ -71,9 +71,9 @@ intDiv _ _ x y = error $ "tried to perform illegal arithmetic operation between 
 -- | Performs string concatenation on two values and returns the result.
 --  If one of the values is not a string or a number, this function will fail.
 valConcat :: BinFn
-valConcat g l (StringVal x) (StringVal y) = return (g, l, StringVal $ show x ++ show y)
-valConcat g l (StringVal x) (NumVal y) = return (g, l, StringVal $ show x ++ show (NumVal y))
-valConcat g l (NumVal x) (StringVal y) = return (g, l, StringVal $ show (NumVal x) ++ show y)
+valConcat g l (StringVal x) (StringVal y) = return (g, l, StringVal $ x ++ y)
+valConcat g l (StringVal x) (NumVal y) = return (g, l, StringVal $ x ++ show (NumVal y))
+valConcat g l (NumVal x) (StringVal y) = return (g, l, StringVal $ show (NumVal x) ++ y)
 valConcat g l (NumVal x) (NumVal y) = return (g, l, StringVal $ show (NumVal x) ++ show (NumVal y))
 valConcat _ _ x y = error $ "tried to perform illegal concatenation between " ++ show x ++ " and " ++ show y
 
