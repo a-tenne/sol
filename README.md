@@ -10,6 +10,7 @@ A mini Lua interpreter written in Haskell
 - [Running Tests](#running-tests)
 - [Code Documentation](#code-documentation)
 - [Implemented Features](#implemented-features)
+- [Language Grammar](#language-grammar)
 
 ## About the Project
 
@@ -24,7 +25,7 @@ Sol is a small [Lua](https://www.lua.org/) interpreter for Unix Systems written 
 
 ### Building and running the Project
 
-To build it, simply do `cabal build` and check `dist-newstyle/build/` for the binary.
+To build it, simply do `cabal build all` and check `dist-newstyle/build/` for the binary.
 
 To run it with cabal, the command is `cabal run sol -- <lua file>`
 
