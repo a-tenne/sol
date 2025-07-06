@@ -81,7 +81,11 @@ library sol-backend
                     containers,
                     text,
                     text-icu,
-                    floating-bits
+                    floating-bits,
+                    time,
+                    process,
+                    unix,
+                    directory
                     
 
 executable sol

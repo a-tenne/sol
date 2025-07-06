@@ -15,20 +15,6 @@ import Runtime.Runtime
 import Runtime.Types
 import Text.Parsec (parse)
 
--- | Turns an AST literal into a runtime value.
---  Note that int64 values are turned into float64.
---  This might get changed in the future, since it does not comply with the Lua standard.
-valFromLiteral :: Literal -> Val
-valFromLiteral (StringLit x) = StringVal x
-valFromLiteral (NumLit (NumDouble x)) = NumVal x
-valFromLiteral (NumLit (NumInt x)) = NumVal $ fromIntegral x
-
--- | Coerces a string to a number value. Calls the num parser from the frontend to do so.
-coerce :: String -> Val
-coerce str = case parse num "" str of
-  Left _ -> error $ "attempt to coerce string " ++ show str ++ " to a number"
-  Right (LiteralExpr x) -> valFromLiteral x
-
 -- | The binary operation function signature.
 type BinFn = GlobalEnv -> Env -> Val -> Val -> IO (GlobalEnv, Env, Val)
 
@@ -174,13 +160,6 @@ valLshift _ _ x y = error $ "tried to perform illegal binary operation between "
 valRshift :: BinFn
 valRshift g l (NumVal x) (NumVal y) = return (g, l, NumVal $ coerceToFloat $ coerceToWord x `shiftR` floor y)
 valRshift _ _ x y = error $ "tried to perform illegal binary operation between " ++ show x ++ " and " ++ show y
-
--- | Checks if a value is truthy.
---  All values are truthy except for nil and false.
-valIsTrue :: Val -> Bool
-valIsTrue (BoolVal False) = False
-valIsTrue NilVal = False
-valIsTrue _ = True
 
 -- | Returns the correct binary operation function based on the given AST operator.
 binOpToFn :: GlobalEnv -> Env -> BIN_OP -> BinFn

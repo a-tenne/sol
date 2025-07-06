@@ -4,12 +4,12 @@ module Runtime.Types where
 
 import AST
 import Data.Char (toLower)
+import Data.IORef
 import Data.Map (Map)
 import Data.Text.ICU (Collator)
 import Data.Unique
 import GHC.IO (unsafePerformIO)
 import GHC.StableName (hashStableName, makeStableName)
-import Data.IORef
 
 -- | Represents the table data structure, which maps values to other values.
 data Table where
